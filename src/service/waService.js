@@ -340,65 +340,6 @@ async function runMenuHandler({
   }
 }
 
-export function buildDashboardPremiumRequestMessage(request) {
-  if (!request) return "";
-  const commandUsername = request.username || request.dashboard_user_id || "unknown";
-  const paymentProofStatus = request.proof_url
-    ? "sudah upload bukti transfer"
-    : "belum upload bukti transfer";
-  const paymentProofLink = request.proof_url || "Belum upload bukti";
-  const lines = [
-    "📢 permintaan akses premium",
-    "",
-    "User dashboard:",
-    `- Username: ${commandUsername}`,
-    `- WhatsApp: ${formatToWhatsAppId(request.whatsapp) || "-"}`,
-    `- Dashboard User ID: ${request.dashboard_user_id || "-"}`,
-    "",
-    "Detail permintaan:",
-    `- Tier: ${request.premium_tier || "-"}`,
-    `- Client ID: ${request.client_id || "-"}`,
-    `- Username (request): ${commandUsername}`,
-    `- Dashboard User ID (request): ${request.dashboard_user_id || "-"}`,
-    `- Request Token (request): ${request.request_token || "-"}`,
-    `- Status Bukti Transfer: ${paymentProofStatus}`,
-    "",
-    "Detail transfer:",
-    `- Bank: ${request.bank_name || "-"}`,
-    `- Nomor Rekening: ${request.account_number || "-"}`,
-    `- Nama Pengirim: ${request.sender_name || "-"}`,
-    `- Jumlah Transfer: ${formatCurrencyId(request.transfer_amount)}`,
-    `- Bukti Transfer: ${paymentProofLink}`,
-    "",
-    `Request ID: ${request.request_id || "-"}`,
-    "",
-    `Balas dengan <response pesan grant access#${commandUsername}> untuk menyetujui atau <response pesan deny access${commandUsername}> untuk menolak.`,
-  ];
-
-  return lines.filter(Boolean).join("\n");
-}
-
-export async function sendDashboardPremiumRequestNotification(client, request) {
-  if (!request) return false;
-  const message = buildDashboardPremiumRequestMessage(request);
-  if (!message) return false;
-  try {
-    await sendWAReport(client || waClient, message);
-    return true;
-  } catch (err) {
-    console.warn(
-      `[WA] Failed to broadcast dashboard premium request ${request.request_id}: ${err?.message || err}`
-    );
-    return false;
-  }
-}
-
-async function notifyDashboardPremiumRequester(request, statusMessage, client = waClient) {
-  if (!request?.whatsapp) return false;
-  const targetId = formatToWhatsAppId(request.whatsapp);
-  return safeSendMessage(client || waClient, targetId, statusMessage);
-}
-
 function formatDateTimeId(value) {
   if (!value) return "-";
   try {
@@ -1805,14 +1746,8 @@ export function createHandleMessage(waClient, options = {}) {
       savedInWhatsapp: false,
       user: null,
     };
-    // Hindari query ke tabel saved_contact saat menangani dashrequest
-    if (
-      !(
-        ["dashrequest", "dirrequest"].includes(text.toLowerCase()) ||
-        (session && ["dashrequest", "dirrequest"].includes(session.menu))
-      ) &&
-      !chatId.endsWith("@g.us")
-    ) {
+    // Save contact for non-group chats
+    if (!chatId.endsWith("@g.us")) {
       await saveContactIfNew(chatId);
     }
 
@@ -2223,7 +2158,6 @@ export function createHandleMessage(waClient, options = {}) {
     if (session && lowerText === "batal") {
       const menuLabels = {
         oprrequest: "Menu Operator",
-        dashrequest: "Menu Dashboard",
         dirrequest: "Menu Direktorat",
         clientrequest: "Menu Client",
         wabotditbinmas: "Menu Wabot Ditbinmas",
@@ -2386,16 +2320,6 @@ export function createHandleMessage(waClient, options = {}) {
     return;
   }
 
-  if (session && session.menu === "dashrequest") {
-    await dashRequestHandlers[session.step || "main"](
-      session,
-      chatId,
-      text,
-      waClient
-    );
-    return;
-  }
-
   if (session && session.menu === "dirrequest") {
     await runMenuHandler({
       handlers: dirRequestHandlers,
@@ -2474,112 +2398,50 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     return;
   }
 
-  // ===== Menu Dashboard =====
-  // Validasi nomor hanya berdasarkan tabel dashboard_user tanpa fallback ke saved_contact
-  if (text.toLowerCase() === "dashrequest") {
-    const waId =
-      userWaNum.startsWith("62") ? userWaNum : "62" + userWaNum.replace(/^0/, "");
-    const dashUsers = await dashboardUserModel.findAllByWhatsApp(waId);
-    const validUsers = dashUsers.filter(
-      (u) => u.status === true && u.role !== "operator"
-    );
-    if (validUsers.length === 0) {
-      await waClient.sendMessage(
-        chatId,
-        "❌ Nomor Anda tidak terdaftar atau belum disetujui sebagai dashboard user."
-      );
-      return;
-    }
-    if (validUsers.length === 1) {
-      const du = validUsers[0];
-      let dirClientId = null;
-      try {
-        const roleClient = await clientService.findClientById(du.role);
-        if (roleClient?.client_type?.toLowerCase() === "direktorat") {
-          dirClientId = du.role;
-        }
-      } catch (e) {
-        // ignore lookup errors and fallback to dashboard user client_ids
-      }
-      setSession(chatId, {
-        menu: "dashrequest",
-        step: "main",
-        role: du.role,
-        client_ids: du.client_ids,
-        dir_client_id: dirClientId,
-      });
-      await dashRequestHandlers.main(getSession(chatId), chatId, "", waClient);
-      return;
-    }
-    setSession(chatId, {
-      menu: "dashrequest",
-      step: "choose_dash_user",
-      dash_users: validUsers,
-    });
-    await dashRequestHandlers.choose_dash_user(
-      getSession(chatId),
-      chatId,
-      "",
-      waClient
-    );
-    return;
-  }
-
   if (text.toLowerCase() === "dirrequest") {
-    const waId =
-      userWaNum.startsWith("62")
-        ? userWaNum
-        : "62" + userWaNum.replace(/^0/, "");
-    const dashUsers = await dashboardUserModel.findAllByWhatsApp(waId);
-    const validUsers = dashUsers.filter(
-      (u) => u.status === true && u.role !== "operator"
-    );
-    if (validUsers.length === 0) {
+    // Check if user is admin
+    if (!isAdminWhatsApp(senderId)) {
       await waClient.sendMessage(
         chatId,
-        "❌ Nomor Anda tidak terdaftar atau belum disetujui sebagai dashboard user."
+        "❌ Fitur ini hanya tersedia untuk administrator."
       );
       return;
     }
-    if (validUsers.length >= 1) {
-      const du = validUsers[0];
-      const directorateClients =
-        await clientService.findAllActiveDirektoratClients();
-      const activeDirectorateClients = (directorateClients || []).map((client) => ({
-        client_id: (client.client_id || "").toUpperCase(),
-        nama: client.nama || client.client_id || "",
-      }));
 
-      if (!activeDirectorateClients.length) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
-        );
-        return;
-      }
+    const directorateClients =
+      await clientService.findAllActiveDirektoratClients();
+    const activeDirectorateClients = (directorateClients || []).map((client) => ({
+      client_id: (client.client_id || "").toUpperCase(),
+      nama: client.nama || client.client_id || "",
+    }));
 
-      setSession(chatId, {
-        menu: "dirrequest",
-        step: "choose_client",
-        role: du.role,
-        username: du.username,
-        dir_clients: activeDirectorateClients,
-      });
-      await runMenuHandler({
-        handlers: dirRequestHandlers,
-        menuName: "dirrequest",
-        session: getSession(chatId),
+    if (!activeDirectorateClients.length) {
+      await waClient.sendMessage(
         chatId,
-        text: "",
-        waClient,
-        clientLabel,
-        invalidStepMessage:
-          "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
-      });
+        "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
+      );
       return;
     }
+
+    setSession(chatId, {
+      menu: "dirrequest",
+      step: "choose_client",
+      dir_clients: activeDirectorateClients,
+    });
+    await runMenuHandler({
+      handlers: dirRequestHandlers,
+      menuName: "dirrequest",
+      session: getSession(chatId),
+      chatId,
+      text: "",
+      waClient,
+      clientLabel,
+      invalidStepMessage:
+        "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
+      failureMessage:
+        "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
+    });
+    return;
   }
 
   const normalizedWabotCmd = text.toLowerCase().replace(/\s+/g, "");
@@ -2588,29 +2450,18 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     normalizedWabotCmd === "wabotditbinmas" ||
     normalizedWabotCmd === "ditbinmas"
   ) {
-    const waId =
-      userWaNum.startsWith("62")
-        ? userWaNum
-        : "62" + userWaNum.replace(/^0/, "");
-    const dashUsers = await dashboardUserModel.findAllByWhatsApp(waId);
-    const validUsers = dashUsers.filter(
-      (u) => u.status === true && u.role?.toLowerCase() !== "operator"
-    );
-    const ditbinmasUsers = validUsers.filter(
-      (u) => u.role?.toLowerCase() === "ditbinmas"
-    );
-    if (ditbinmasUsers.length === 0) {
+    // Check if user is admin
+    if (!isAdminWhatsApp(senderId)) {
       await waClient.sendMessage(
         chatId,
-        "❌ Nomor Anda tidak terdaftar sebagai pengguna Ditbinmas."
+        "❌ Fitur ini hanya tersedia untuk administrator."
       );
       return;
     }
+
     setSession(chatId, {
       menu: "wabotditbinmas",
       step: "main",
-      role: ditbinmasUsers[0].role,
-      username: ditbinmasUsers[0].username,
       time: Date.now(),
     });
     await wabotDitbinmasHandlers.main(getSession(chatId), chatId, "", waClient);
@@ -4513,172 +4364,20 @@ export async function handleGatewayMessage(msg) {
       return;
     }
 
-    const waNumber = senderId.replace(/[^0-9]/g, "");
-    const waId = waNumber
-      ? waNumber.startsWith("62")
-        ? waNumber
-        : "62" + waNumber.replace(/^0/, "")
-      : "";
-
-    if (!waId) {
+    // Check if user is admin
+    if (!isAdminWhatsApp(senderId)) {
       await waGatewayClient.sendMessage(
         chatId,
-        "❌ Nomor pengirim tidak valid untuk pengecekan akun resmi."
+        "❌ Fitur ini hanya tersedia untuk administrator."
       );
       return;
     }
 
-    let dashUsers = [];
-    try {
-      dashUsers = await dashboardUserModel.findAllByWhatsApp(waId);
-    } catch (err) {
-      console.error(
-        `[WA-GATEWAY] Failed to load dashboard users for ${waId}: ${err?.message || err}`
-      );
-    }
-
-    const validUsers = dashUsers.filter(
-      (u) => u.status === true && u.role?.toLowerCase() !== "operator"
+    // Ask admin for client_id since we don't have dashboard_user mapping
+    await waGatewayClient.sendMessage(
+      chatId,
+      "ℹ️ Silakan hubungi developer untuk mengonfigurasi client_id untuk fitur satbinmas official account."
     );
-
-    if (validUsers.length === 0) {
-      await waGatewayClient.sendMessage(
-        chatId,
-        "❌ Nomor Anda tidak terdaftar atau belum aktif sebagai dashboard user."
-      );
-      return;
-    }
-
-    const chosenUser =
-      validUsers.find((u) => Array.isArray(u.client_ids) && u.client_ids.length)
-        || validUsers[0];
-    const clientIds = Array.isArray(chosenUser?.client_ids)
-      ? chosenUser.client_ids.filter(Boolean)
-      : [];
-    const primaryClientId = clientIds[0];
-
-    if (!primaryClientId) {
-      await waGatewayClient.sendMessage(
-        chatId,
-        "❌ Nomor dashboard Anda belum memiliki relasi client yang aktif."
-      );
-      return;
-    }
-
-    let clientName = primaryClientId;
-    try {
-      const client = await clientService.findClientById(primaryClientId);
-      if (client?.nama) {
-        clientName = client.nama;
-      }
-    } catch (err) {
-      console.error(
-        `[WA-GATEWAY] Failed to load client ${primaryClientId}: ${err?.message || err}`
-      );
-    }
-
-    let officialAccounts = [];
-    try {
-      officialAccounts =
-        await satbinmasOfficialAccountService.listSatbinmasOfficialAccounts(
-          primaryClientId
-        );
-    } catch (err) {
-      console.error(
-        `[WA-GATEWAY] Failed to fetch satbinmas official accounts for ${primaryClientId}: ${err?.message || err}`
-      );
-      await waGatewayClient.sendMessage(
-        chatId,
-        "❌ Gagal mengambil data akun resmi Satbinmas. Silakan coba lagi."
-      );
-      return;
-    }
-
-    const formatAccount = (account, idx) => {
-      const activeLabel = account.is_active ? "Aktif" : "Nonaktif";
-      const blueTickLabel = account.is_verified ? "Sudah" : "Belum";
-      const normalizedUsername = account.username?.trim();
-      const username = normalizedUsername || "-";
-      const displayName = account.display_name?.trim() || "-";
-      const profileLink = (() => {
-        const normalizedHandle = normalizedUsername?.replace(/^@/, "");
-        const normalizedPlatform = account.platform?.toLowerCase();
-        const trimmedProfileUrl = account.profile_url?.trim();
-
-        const canonicalFromUsername = () => {
-          if (!normalizedHandle) return "-";
-          if (normalizedPlatform === "instagram") {
-            return `https://www.instagram.com/${normalizedHandle}`;
-          }
-          if (normalizedPlatform === "tiktok") {
-            return `https://www.tiktok.com/@${normalizedHandle}`;
-          }
-          return "-";
-        };
-
-        const profileUrlMatchesPlatform = () => {
-          const allowedHostsByPlatform = {
-            instagram: ["instagram.com", "www.instagram.com", "m.instagram.com"],
-            tiktok: ["tiktok.com", "www.tiktok.com", "m.tiktok.com"],
-          };
-
-          try {
-            const url = new URL(trimmedProfileUrl);
-            const hostname = url.hostname.toLowerCase();
-            const allowedHosts = allowedHostsByPlatform[normalizedPlatform] || [];
-            return allowedHosts.includes(hostname);
-          } catch (err) {
-            return false;
-          }
-        };
-
-        if (trimmedProfileUrl && profileUrlMatchesPlatform()) {
-          return trimmedProfileUrl;
-        }
-
-        return canonicalFromUsername();
-      })();
-
-      return (
-        `${idx + 1}. [${getPlatformLabel(account.platform)}] ${username}\n` +
-        `   Status: ${activeLabel}\n` +
-        `   Display Name: ${displayName}\n` +
-        `   Centang Biru: ${blueTickLabel}\n` +
-        `   Link profile: ${profileLink}`
-      );
-    };
-
-    const hasOfficialAccounts = officialAccounts.length > 0;
-    const accountSection = hasOfficialAccounts
-      ? officialAccounts.map(formatAccount).join("\n")
-      : "Belum ada akun resmi yang terdaftar.";
-
-    const followUpPrompt = hasOfficialAccounts
-      ? "Apakah Anda ingin menambah atau mengubah data akun resmi Satbinmas? Balas *ya* untuk melanjutkan input data atau *batal* untuk berhenti."
-      : "Belum ada akun resmi yang terdaftar. Balas *ya* untuk menambahkan akun resmi Satbinmas atau *batal* untuk berhenti.";
-
-    const responseMessage =
-      "📡 *Data Akun Resmi Satbinmas*\n" +
-      `Client ID : ${primaryClientId}\n` +
-      `Polres    : ${clientName}\n` +
-      `Role      : ${chosenUser.role || "-"}\n` +
-      `Dashboard : ${chosenUser.username || "-"}\n` +
-      "\n" +
-      "*Akun Resmi*: \n" +
-      accountSection +
-      "\n\n" +
-      followUpPrompt;
-
-    await waGatewayClient.sendMessage(chatId, responseMessage);
-    setSession(chatId, {
-      menu: "satbinmasofficial_gateway",
-      step: hasOfficialAccounts ? "confirm_manage" : "confirm_add",
-      targetClientId: primaryClientId,
-      satbinmasOfficialDraft: {
-        targetClientId: primaryClientId,
-      },
-      prompt: followUpPrompt,
-    });
     return;
   }
 
