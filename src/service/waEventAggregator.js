@@ -54,9 +54,7 @@ if (cleanupTimer.unref) {
 const debugLoggingEnabled = process.env.WA_DEBUG_LOGGING === 'true';
 
 /**
- * Deduplicate incoming messages from multiple adapters.
- * Messages received via wwebjs are preferred; baileys messages are delayed
- * briefly to allow wwebjs to handle the message first.
+ * Deduplicate incoming messages.
  * @param {string} fromAdapter
  * @param {object} msg
  * @param {(msg: object) => void} handler
@@ -110,28 +108,8 @@ export function handleIncoming(fromAdapter, msg, handler, options = {}) {
     return;
   }
 
-  if (fromAdapter === "baileys") {
-    if (debugLoggingEnabled) {
-      console.log(`[WA-EVENT-AGGREGATOR] Baileys message, delaying 200ms: ${key}`);
-    }
-    setTimeout(() => {
-      if (seenMessages.has(key)) {
-        if (debugLoggingEnabled) {
-          console.log(`[WA-EVENT-AGGREGATOR] Baileys message already handled: ${key}`);
-        }
-        return;
-      }
-      if (debugLoggingEnabled) {
-        console.log(`[WA-EVENT-AGGREGATOR] Processing delayed baileys message: ${key}`);
-      }
-      seenMessages.set(key, Date.now());
-      invokeHandler();
-    }, 200);
-    return;
-  }
-
   if (debugLoggingEnabled) {
-    console.log(`[WA-EVENT-AGGREGATOR] Processing wwebjs message: ${key}`);
+    console.log(`[WA-EVENT-AGGREGATOR] Processing message from ${fromAdapter}: ${key}`);
   }
   seenMessages.set(key, Date.now());
   invokeHandler();

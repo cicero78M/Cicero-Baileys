@@ -11,8 +11,8 @@ import { query } from "../db/index.js";
 import { env } from "../config/env.js";
 const pool = { query };
 
-// WhatsApp client using whatsapp-web.js
-import { createWwebjsClient } from "./wwebjsAdapter.js";
+// WhatsApp client using Baileys
+import { createBaileysClient } from "./baileysAdapter.js";
 import { handleIncoming } from "./waEventAggregator.js";
 import {
   logWaServiceDiagnostics,
@@ -745,10 +745,10 @@ ensureUserClientIdConsistency();
 ensureGatewayClientIdConsistency();
 ensureClientIdUniqueness();
 
-// Initialize WhatsApp client via whatsapp-web.js
-export let waClient = await createWwebjsClient();
-export let waUserClient = await createWwebjsClient(env.USER_WA_CLIENT_ID);
-export let waGatewayClient = await createWwebjsClient(resolvedGatewayClientId);
+// Initialize WhatsApp client via Baileys
+export let waClient = await createBaileysClient();
+export let waUserClient = await createBaileysClient(env.USER_WA_CLIENT_ID);
+export let waGatewayClient = await createBaileysClient(resolvedGatewayClientId);
 
 const logClientIdIssue = (envVar, issueMessage) => {
   console.error(`[WA] ${envVar} ${issueMessage}; clientId harus unik.`);
@@ -4909,7 +4909,7 @@ if (shouldInitWhatsAppClients) {
       }),
       { debugOnly: true }
     );
-    handleIncoming('wwebjs', msg, handleMessage);
+    handleIncoming('baileys', msg, handleMessage);
   });
 
   waUserClient.on('message', (msg) => {
@@ -4939,7 +4939,7 @@ if (shouldInitWhatsAppClients) {
       }),
       { debugOnly: true }
     );
-    handleIncoming('wwebjs-user', msg, handleUserMessage);
+    handleIncoming('baileys-user', msg, handleUserMessage);
   });
 
   waGatewayClient.on('message', (msg) => {
@@ -4954,7 +4954,7 @@ if (shouldInitWhatsAppClients) {
       }),
       { debugOnly: true }
     );
-    handleIncoming('wwebjs-gateway', msg, handleGatewayMessage);
+    handleIncoming('baileys-gateway', msg, handleGatewayMessage);
   });
 
   writeWaStructuredLog("info", buildWaStructuredLog({ label: "WA", event: "wa_message_listener_attach_ready" }));
