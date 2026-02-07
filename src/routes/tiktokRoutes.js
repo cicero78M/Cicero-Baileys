@@ -7,14 +7,12 @@ import {
   getRapidTiktokPosts,
   getRapidTiktokInfo
 } from '../controller/tiktokController.js';
-import { postComplaintTiktok } from '../controller/complaintController.js';
-import { verifyDashboardOrClientToken } from '../middleware/dashboardAuth.js';
+import { authRequired } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
-router.use(verifyDashboardOrClientToken);
+router.use(authRequired);
 router.get('/comments', getTiktokComments);
-router.post('/komplain', postComplaintTiktok);
 router.get('/rekap-komentar', getTiktokRekapKomentar);
 router.get('/posts', getTiktokPosts);
 router.get('/rapid-profile', getRapidTiktokProfile);

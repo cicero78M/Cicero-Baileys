@@ -22,7 +22,6 @@ import {
 // Service & Utility Imports
 import * as clientService from "./clientService.js";
 import * as userModel from "../model/userModel.js";
-import * as dashboardUserModel from "../model/dashboardUserModel.js";
 import * as satbinmasOfficialAccountService from "./satbinmasOfficialAccountService.js";
 import { findByOperator, findBySuperAdmin } from "../model/clientModel.js";
 import * as premiumService from "./premiumService.js";
@@ -120,11 +119,6 @@ import {
   TT_PROFILE_REGEX,
   adminCommands,
 } from "../utils/constants.js";
-import {
-  approveDashboardPremiumRequest,
-  denyDashboardPremiumRequest,
-  findLatestOpenDashboardPremiumRequestByIdentifier,
-} from "./dashboardPremiumRequestService.js";
 
 dotenv.config();
 
@@ -4002,181 +3996,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
         chatId,
         `❌ Gagal proses transfer: ${err.message}`
       );
-    }
-    return;
-  }
-
-
-
-  // =========================
-  // === APPROVE / DENY DASHBOARD ADMIN (DEPRECATED)
-  // =========================
-  if (text.toLowerCase().startsWith("approvedash#")) {
-    console.warn('[DEPRECATED] WhatsApp approval command used. Please use Telegram bot instead.');
-    const [, usernameRaw] = text.split("#");
-    const username = usernameRaw?.trim();
-    if (!username) {
-      await waClient.sendMessage(chatId, "⚠️ [DEPRECATED] Format salah! Gunakan: approvedash#username\n\nCatatan: Mekanisme approval via WA akan segera dihapus. Gunakan Telegram bot.");
-      return;
-    }
-    const usr = await dashboardUserModel.findByUsername(username);
-    if (!usr) {
-      await waClient.sendMessage(chatId, `❌ Username ${username} tidak ditemukan.`);
-      return;
-    }
-    await dashboardUserModel.updateStatus(usr.dashboard_user_id, true);
-    await waClient.sendMessage(chatId, `✅ User ${usr.username} disetujui.\n\n⚠️ [DEPRECATED] Mekanisme approval via WA akan segera dihapus. Gunakan Telegram bot.`);
-    if (usr.whatsapp) {
-      await safeSendMessage(
-        waClient,
-        formatToWhatsAppId(usr.whatsapp),
-        `✅ Registrasi dashboard Anda telah disetujui.\nUsername: ${usr.username}`
-      );
-    }
-    return;
-  }
-
-  if (text.toLowerCase().startsWith("denydash#")) {
-    console.warn('[DEPRECATED] WhatsApp denial command used. Please use Telegram bot instead.');
-    const [, usernameRaw] = text.split("#");
-    const username = usernameRaw?.trim();
-    if (!username) {
-      await waClient.sendMessage(chatId, "⚠️ [DEPRECATED] Format salah! Gunakan: denydash#username\n\nCatatan: Mekanisme approval via WA akan segera dihapus. Gunakan Telegram bot.");
-      return;
-    }
-    const usr = await dashboardUserModel.findByUsername(username);
-    if (!usr) {
-      await waClient.sendMessage(chatId, `❌ Username ${username} tidak ditemukan.`);
-      return;
-    }
-    await dashboardUserModel.updateStatus(usr.dashboard_user_id, false);
-    await waClient.sendMessage(chatId, `❌ User ${usr.username} ditolak.\n\n⚠️ [DEPRECATED] Mekanisme approval via WA akan segera dihapus. Gunakan Telegram bot.`);
-    if (usr.whatsapp) {
-      await safeSendMessage(
-        waClient,
-        formatToWhatsAppId(usr.whatsapp),
-        `❌ Registrasi dashboard Anda ditolak.\nUsername: ${usr.username}`
-      );
-    }
-    return;
-  }
-
-  // =========================
-  // === APPROVE / DENY DASHBOARD PREMIUM REQUEST
-  // =========================
-  const accessApprovalMatch = text.match(/^grant\s+access#?(.*)$/i);
-  const accessDenialMatch = text.match(/^deny\s+access#?(.*)$/i);
-
-  if (lowerText.startsWith("grantdashsub#") || accessApprovalMatch) {
-    if (!isAdmin || !adminWaId) {
-      console.warn(
-        `${clientLabel} Unauthorized dashboard premium approval attempt by ${senderId}`
-      );
-      await waClient.sendMessage(
-        chatId,
-        "❌ Perintah ini hanya boleh dijalankan oleh admin yang terdaftar."
-      );
-      return;
-    }
-    const [, tokenRaw] = lowerText.startsWith("grantdashsub#") ? text.split("#") : [];
-    const approvalToken = tokenRaw?.trim();
-    const approvalIdentifier = accessApprovalMatch?.[1]?.trim();
-
-    let resolvedToken = approvalToken;
-    try {
-      if (!resolvedToken && approvalIdentifier) {
-        const pendingRequest = await findLatestOpenDashboardPremiumRequestByIdentifier(
-          approvalIdentifier
-        );
-        if (!pendingRequest || !pendingRequest.request_token) {
-          await waClient.sendMessage(
-            chatId,
-            "❌ Request tidak ditemukan atau sudah tidak aktif."
-          );
-          return;
-        }
-        resolvedToken = pendingRequest.request_token;
-      }
-
-      if (!resolvedToken) {
-        await waClient.sendMessage(
-          chatId,
-          "Format salah! Gunakan: grant access#<username/dashboard_user_id> atau grantdashsub#<token>"
-        );
-        return;
-      }
-
-      const result = await approveDashboardPremiumRequest(resolvedToken, {
-        admin_whatsapp: adminWaId,
-        actor: chatId,
-      });
-      await waClient.sendMessage(
-        chatId,
-        `✅ Request dashboard premium disetujui untuk ${result.request.username || result.request.dashboard_user_id}.`
-      );
-      await notifyDashboardPremiumRequester(
-        result.request,
-        "✅ Permintaan premium dashboard Anda disetujui. Silakan login ulang untuk memuat hak akses terbaru."
-      );
-    } catch (err) {
-      await waClient.sendMessage(chatId, `❌ Gagal memproses persetujuan: ${err.message}`);
-    }
-    return;
-  }
-
-  if (lowerText.startsWith("denydashsub#") || accessDenialMatch) {
-    if (!isAdmin || !adminWaId) {
-      console.warn(
-        `${clientLabel} Unauthorized dashboard premium denial attempt by ${senderId}`
-      );
-      await waClient.sendMessage(
-        chatId,
-        "❌ Perintah ini hanya boleh dijalankan oleh admin yang terdaftar."
-      );
-      return;
-    }
-    const [, tokenRaw] = lowerText.startsWith("denydashsub#") ? text.split("#") : [];
-    const denialToken = tokenRaw?.trim();
-    const denialIdentifier = accessDenialMatch?.[1]?.trim();
-
-    let resolvedToken = denialToken;
-    try {
-      if (!resolvedToken && denialIdentifier) {
-        const pendingRequest = await findLatestOpenDashboardPremiumRequestByIdentifier(
-          denialIdentifier
-        );
-        if (!pendingRequest || !pendingRequest.request_token) {
-          await waClient.sendMessage(
-            chatId,
-            "❌ Request tidak ditemukan atau sudah tidak aktif."
-          );
-          return;
-        }
-        resolvedToken = pendingRequest.request_token;
-      }
-
-      if (!resolvedToken) {
-        await waClient.sendMessage(
-          chatId,
-          "Format salah! Gunakan: deny access#<username/dashboard_user_id> atau denydashsub#<token>"
-        );
-        return;
-      }
-
-      const request = await denyDashboardPremiumRequest(resolvedToken, {
-        admin_whatsapp: adminWaId,
-        actor: chatId,
-      });
-      await waClient.sendMessage(
-        chatId,
-        `❌ Request dashboard premium ditolak untuk ${request.username || request.dashboard_user_id}.`
-      );
-      await notifyDashboardPremiumRequester(
-        request,
-        "❌ Permintaan premium dashboard Anda ditolak. Silakan hubungi admin untuk informasi lebih lanjut."
-      );
-    } catch (err) {
-      await waClient.sendMessage(chatId, `❌ Gagal menolak request: ${err.message}`);
     }
     return;
   }

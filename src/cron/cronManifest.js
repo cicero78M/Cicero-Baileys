@@ -36,22 +36,10 @@ export default [
     description: 'Fetch Ditbinmas Instagram/TikTok posts, refresh engagement metrics, and broadcast status deltas.',
   },
   {
-    jobKey: './src/cron/cronDashboardSubscriptionExpiry.js',
-    modulePath: './src/cron/cronDashboardSubscriptionExpiry.js',
-    bucket: 'waClient',
-    description: 'Expire overdue dashboard subscriptions and notify users via WhatsApp.',
-  },
-  {
     jobKey: './src/cron/cronPremiumExpiry.js',
     modulePath: './src/cron/cronPremiumExpiry.js',
     bucket: 'always',
     description: 'Expire premium access for mobile users when premium_end_date has passed.',
-  },
-  {
-    jobKey: './src/cron/cronDashboardPremiumRequestExpiry.js',
-    modulePath: './src/cron/cronDashboardPremiumRequestExpiry.js',
-    bucket: 'waClient',
-    description: 'Expire stale dashboard premium requests and notify admins plus requesters.',
   },
   {
     jobKey: './src/cron/cronOprRequestAbsensiUpdateDataUsername.js',
