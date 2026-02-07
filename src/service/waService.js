@@ -2400,7 +2400,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
 
   if (text.toLowerCase() === "dirrequest") {
     // Check if user is admin
-    if (!isAdminWhatsApp(senderId)) {
+    if (!senderId || !isAdminWhatsApp(senderId)) {
       await waClient.sendMessage(
         chatId,
         "❌ Fitur ini hanya tersedia untuk administrator."
@@ -2451,7 +2451,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     normalizedWabotCmd === "ditbinmas"
   ) {
     // Check if user is admin
-    if (!isAdminWhatsApp(senderId)) {
+    if (!senderId || !isAdminWhatsApp(senderId)) {
       await waClient.sendMessage(
         chatId,
         "❌ Fitur ini hanya tersedia untuk administrator."
@@ -4365,7 +4365,7 @@ export async function handleGatewayMessage(msg) {
     }
 
     // Check if user is admin
-    if (!isAdminWhatsApp(senderId)) {
+    if (!senderId || !isAdminWhatsApp(senderId)) {
       await waGatewayClient.sendMessage(
         chatId,
         "❌ Fitur ini hanya tersedia untuk administrator."
@@ -4373,10 +4373,13 @@ export async function handleGatewayMessage(msg) {
       return;
     }
 
-    // Ask admin for client_id since we don't have dashboard_user mapping
+    // Note: This feature previously relied on dashboard_user for client_id mapping.
+    // After dashboard removal, admins need to specify client_id explicitly.
+    // TODO: Implement client_id selection mechanism for satbinmas official account management
     await waGatewayClient.sendMessage(
       chatId,
-      "ℹ️ Silakan hubungi developer untuk mengonfigurasi client_id untuk fitur satbinmas official account."
+      "ℹ️ Fitur ini sedang dalam perbaikan setelah penghapusan sistem dashboard.\n" +
+      "Untuk sementara, silakan hubungi developer untuk konfigurasi akun resmi Satbinmas."
     );
     return;
   }
