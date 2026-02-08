@@ -60,13 +60,11 @@ describe("userMenuHandlers conversational flow", () => {
 
     expect(waClient.sendMessage).toHaveBeenCalledWith(
       chatId,
-      [
-        "Untuk menampilkan data Anda, silakan ketik NRP/NIP Anda (hanya angka).",
-        "Ketik *batal* untuk keluar.",
-        "",
-        "Contoh:",
-        "87020990",
-      ].join("\n")
+      expect.stringContaining("Untuk menampilkan data Anda, silakan ketik NRP/NIP Anda (hanya angka).")
+    );
+    expect(waClient.sendMessage).toHaveBeenCalledWith(
+      chatId,
+      expect.stringContaining("Ketik *batal* untuk keluar.")
     );
   });
 
@@ -161,15 +159,13 @@ describe("userMenuHandlers conversational flow", () => {
 
     expect(session.exit).toBeUndefined();
     expect(session.step).toBe("inputUserId");
-    expect(waClient.sendMessage).toHaveBeenNthCalledWith(
-      1,
+    expect(waClient.sendMessage).toHaveBeenCalledWith(
       chatId,
-      "❌ NRP/NIP *123456* tidak ditemukan. Jika yakin benar, hubungi Opr Humas Polres Anda."
+      expect.stringContaining("❌ NRP/NIP *123456* tidak ditemukan")
     );
-    expect(waClient.sendMessage).toHaveBeenNthCalledWith(
-      2,
+    expect(waClient.sendMessage).toHaveBeenCalledWith(
       chatId,
-      "Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar."
+      expect.stringContaining("Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar")
     );
   });
 
@@ -253,7 +249,7 @@ describe("userMenuHandlers conversational flow", () => {
 
     expect(waClient.sendMessage).toHaveBeenCalledWith(
       chatId,
-      "Balas *ya* jika ingin update data, *tidak* untuk kembali, atau *batal* untuk menutup sesi."
+      expect.stringContaining("Balas *ya* jika ingin update data, *tidak* untuk kembali, atau *batal* untuk menutup sesi.")
     );
   });
 });

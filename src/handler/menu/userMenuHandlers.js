@@ -48,37 +48,21 @@ export const userMenuHandlers = {
 
     if (userByWA) {
       session.isDitbinmas = !!userByWA.ditbinmas;
+      session.identityConfirmed = true;
+      session.user_id = userByWA.user_id;
       const salam = getGreeting();
       
-      // If already confirmed in this session, skip to update question
-      if (session.identityConfirmed && session.user_id === userByWA.user_id) {
-        const msgText = [
-          `${salam}, Bapak/Ibu`,
-          "",
-          formatUserReport(userByWA),
-          "",
-          "Apakah Anda ingin melakukan perubahan data?",
-          "Balas *ya* untuk update data atau *tidak* untuk keluar.",
-        ].join("\n");
-        session.step = "tanyaUpdateMyData";
-        await waClient.sendMessage(chatId, msgText.trim());
-        return;
-      }
-      
-      // First time, show data and ask for confirmation
+      // For registered users, directly show data and ask about updates
       const msgText = [
-        `${salam}, Bapak/Ibu`,
+        `${salam}, Bapak/Ibu *${userByWA.nama || ""}*`,
         "",
         formatUserReport(userByWA),
         "",
-        "📋 *Konfirmasi Identitas*",
-        "Apakah data di atas benar milik Anda?",
-        "",
-        "Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk keluar.",
+        "Apakah Anda ingin melakukan perubahan data?",
+        "Balas *ya* untuk update data atau *batal* untuk menutup sesi.",
       ].join("\n");
-      session.step = "confirmUserByWaIdentity";
-      session.user_id = userByWA.user_id;
-      await waClient.sendMessage(chatId, msgText);
+      session.step = "tanyaUpdateMyData";
+      await waClient.sendMessage(chatId, msgText.trim());
       return;
     }
 
@@ -117,7 +101,7 @@ export const userMenuHandlers = {
     } else {
       await waClient.sendMessage(
         chatId,
-        "❌ Jawaban tidak dikenali.\n\nBalas *ya* jika data benar milik Anda, *tidak* jika bukan, atau *batal* untuk keluar."
+        "❌ Jawaban tidak dikenali.\n\nBalas *ya* jika data benar milik Anda, *tidak* jika bukan, atau *batal* untuk menutup sesi."
       );
     }
   },
@@ -137,7 +121,7 @@ export const userMenuHandlers = {
     }
     await waClient.sendMessage(
       chatId,
-      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk melanjutkan atau *tidak* untuk keluar."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk melanjutkan atau *batal* untuk menutup sesi."
     );
   },
 
@@ -529,7 +513,7 @@ export const userMenuHandlers = {
     }
     await waClient.sendMessage(
       chatId,
-      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk update data atau *tidak* untuk keluar."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* jika ingin update data, *tidak* untuk kembali, atau *batal* untuk menutup sesi."
     );
   },
 };
