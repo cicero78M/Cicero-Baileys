@@ -48,38 +48,52 @@ export const userMenuHandlers = {
     if (userByWA) {
       session.isDitbinmas = !!userByWA.ditbinmas;
       const salam = getGreeting();
+      
+      // If already confirmed in this session, skip to update question
       if (session.identityConfirmed && session.user_id === userByWA.user_id) {
-        const msgText = `${salam}, Bapak/Ibu\n${formatUserReport(
-          userByWA
-        )}\n\nApakah Anda ingin melakukan perubahan data?\nBalas *ya* jika ingin update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi.`;
+        const msgText = [
+          `${salam}, Bapak/Ibu`,
+          "",
+          formatUserReport(userByWA),
+          "",
+          "Apakah Anda ingin melakukan perubahan data?",
+          "Balas *ya* untuk update data atau *tidak* untuk keluar.",
+        ].join("\n");
         session.step = "tanyaUpdateMyData";
         await waClient.sendMessage(chatId, msgText.trim());
         return;
       }
-    const msgText = `
-${salam}, Bapak/Ibu
-${formatUserReport(userByWA)}
-
-Apakah data di atas benar milik Anda?
-Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
-`.trim();
+      
+      // First time, show data and ask for confirmation
+      const msgText = [
+        `${salam}, Bapak/Ibu`,
+        "",
+        formatUserReport(userByWA),
+        "",
+        "📋 *Konfirmasi Identitas*",
+        "Apakah data di atas benar milik Anda?",
+        "",
+        "Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk keluar.",
+      ].join("\n");
       session.step = "confirmUserByWaIdentity";
       session.user_id = userByWA.user_id;
       await waClient.sendMessage(chatId, msgText);
       return;
     }
 
+    // No WhatsApp number registered, ask for NRP/NIP
     session.step = "inputUserId";
-    await waClient.sendMessage(
-      chatId,
-      [
-        "Untuk menampilkan data Anda, silakan ketik NRP/NIP Anda (hanya angka).",
-        "Ketik *batal* untuk keluar.",
-        "",
-        "Contoh:",
-        "87020990",
-      ].join("\n")
-    );
+    const msgText = [
+      "🔐 *Registrasi Akun*",
+      "",
+      "Nomor WhatsApp Anda belum terdaftar dalam sistem.",
+      "Untuk menampilkan data Anda, silakan ketik NRP/NIP Anda (hanya angka).",
+      "",
+      "Contoh: 87020990",
+      "",
+      "Ketik *batal* untuk keluar.",
+    ].join("\n");
+    await waClient.sendMessage(chatId, msgText);
   },
 
   // --- Konfirmasi identitas (lihat data)
@@ -90,16 +104,19 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
       session.step = "tanyaUpdateMyData";
       await waClient.sendMessage(
         chatId,
-        "Apakah Anda ingin melakukan perubahan data?\nBalas *ya* jika ingin update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi."
+        [
+          "✅ Identitas berhasil dikonfirmasi.",
+          "",
+          "Apakah Anda ingin melakukan perubahan data?",
+          "Balas *ya* untuk update data atau *tidak* untuk keluar.",
+        ].join("\n")
       );
-    } else if (answer === "tidak") {
-      await closeSession(session, chatId, waClient);
-    } else if (answer === "batal") {
+    } else if (answer === "tidak" || answer === "batal") {
       await closeSession(session, chatId, waClient);
     } else {
       await waClient.sendMessage(
         chatId,
-        "Jawaban tidak dikenali. Balas *ya* jika benar data Anda, *tidak* jika bukan, atau *batal* untuk menutup sesi."
+        "❌ Jawaban tidak dikenali.\n\nBalas *ya* jika data benar milik Anda, *tidak* jika bukan, atau *batal* untuk keluar."
       );
     }
   },
@@ -113,16 +130,13 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
       session.step = "updateAskField";
       await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
       return;
-    } else if (answer === "tidak") {
-      await closeSession(session, chatId, waClient);
-      return;
-    } else if (answer === "batal") {
+    } else if (answer === "tidak" || answer === "batal") {
       await closeSession(session, chatId, waClient);
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Jawaban tidak dikenali. Balas *ya* jika benar data Anda, *tidak* jika bukan, atau *batal* untuk menutup sesi."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk melanjutkan atau *tidak* untuk keluar."
     );
   },
 
@@ -178,36 +192,62 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
     const answer = text.trim().toLowerCase();
     const waNum = normalizeWhatsappNumber(chatId);
     if (answer === "ya") {
-      const user_id = session.bindUserId;
-      await userModel.updateUserField(user_id, "whatsapp", waNum);
-      await saveContactIfNew(formatToWhatsAppId(waNum));
-      const user = await userModel.findUserById(user_id);
-      session.isDitbinmas = !!user.ditbinmas;
-      await waClient.sendMessage(
-        chatId,
-        `✅ Nomor WhatsApp telah dihubungkan ke NRP/NIP *${user_id}*. Berikut datanya:\n` +
-          formatUserReport(user)
-      );
-      session.identityConfirmed = true;
-      session.user_id = user_id;
-      session.step = "tanyaUpdateMyData";
-      await waClient.sendMessage(
-        chatId,
-        "Apakah Anda ingin melakukan perubahan data?\nBalas *ya* jika ingin update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi."
-      );
+      try {
+        const user_id = session.bindUserId;
+        await userModel.updateUserField(user_id, "whatsapp", waNum);
+        
+        try {
+          await saveContactIfNew(formatToWhatsAppId(waNum));
+        } catch (err) {
+          console.error('[confirmBindUser] Error saving contact:', err);
+          // Non-critical, continue
+        }
+        
+        const user = await userModel.findUserById(user_id);
+        session.isDitbinmas = !!user.ditbinmas;
+        await waClient.sendMessage(
+          chatId,
+          [
+            `✅ *Berhasil Terhubung*`,
+            "",
+            `Nomor WhatsApp telah dihubungkan ke NRP/NIP *${user_id}*.`,
+            "",
+            "Berikut data Anda:",
+            "",
+            formatUserReport(user),
+          ].join("\n")
+        );
+        session.identityConfirmed = true;
+        session.user_id = user_id;
+        session.step = "tanyaUpdateMyData";
+        await waClient.sendMessage(
+          chatId,
+          [
+            "Apakah Anda ingin melakukan perubahan data?",
+            "Balas *ya* untuk update data atau *tidak* untuk keluar.",
+          ].join("\n")
+        );
+      } catch (err) {
+        console.error('[confirmBindUser] Error binding user:', err);
+        await waClient.sendMessage(
+          chatId,
+          "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*."
+        );
+        session.exit = true;
+      }
       return;
     }
-    if (answer === "tidak") {
+    if (answer === "tidak" || answer === "batal") {
       await waClient.sendMessage(
         chatId,
-        "Nomor WhatsApp ini tetap tidak terhubung dengan NRP/NIP. Jika ingin mencoba lagi, ketik *userrequest* atau hubungi operator bila membutuhkan bantuan."
+        "✅ Proses dibatalkan. Nomor WhatsApp tidak dihubungkan.\n\nKetik *userrequest* untuk mencoba lagi atau hubungi operator jika membutuhkan bantuan."
       );
       session.exit = true;
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Balas *ya* untuk menghubungkan nomor, atau *tidak* untuk membatalkan."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk menghubungkan nomor atau *tidak* untuk membatalkan."
     );
   },
 
@@ -215,27 +255,43 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
     const ans = text.trim().toLowerCase();
     const waNum = normalizeWhatsappNumber(chatId);
     if (ans === "ya") {
-      const nrp = session.updateUserId;
-      await userModel.updateUserField(nrp, "whatsapp", waNum);
-      await saveContactIfNew(formatToWhatsAppId(waNum));
-      await waClient.sendMessage(chatId, `✅ Nomor berhasil dihubungkan ke NRP/NIP *${nrp}*.`);
-      session.identityConfirmed = true;
-      session.user_id = nrp;
-      session.step = "updateAskField";
-      await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
+      try {
+        const nrp = session.updateUserId;
+        await userModel.updateUserField(nrp, "whatsapp", waNum);
+        
+        try {
+          await saveContactIfNew(formatToWhatsAppId(waNum));
+        } catch (err) {
+          console.error('[confirmBindUpdate] Error saving contact:', err);
+          // Non-critical, continue
+        }
+        
+        await waClient.sendMessage(chatId, `✅ Nomor berhasil dihubungkan ke NRP/NIP *${nrp}*.`);
+        session.identityConfirmed = true;
+        session.user_id = nrp;
+        session.step = "updateAskField";
+        await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
+      } catch (err) {
+        console.error('[confirmBindUpdate] Error updating WhatsApp field:', err);
+        await waClient.sendMessage(
+          chatId,
+          "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*."
+        );
+        session.exit = true;
+      }
       return;
     }
-    if (ans === "tidak") {
+    if (ans === "tidak" || ans === "batal") {
       await waClient.sendMessage(
         chatId,
-        "Nomor WhatsApp ini tidak dihubungkan ke NRP/NIP. Ketik *userrequest* untuk kembali ke menu atau hubungi operator bila membutuhkan bantuan."
+        "✅ Proses dibatalkan. Nomor WhatsApp tidak dihubungkan.\n\nKetik *userrequest* untuk kembali ke menu atau hubungi operator jika membutuhkan bantuan."
       );
       session.exit = true;
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Balas *ya* untuk menghubungkan nomor, atau *tidak* untuk membatalkan."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk menghubungkan nomor atau *tidak* untuk membatalkan."
     );
   },
 
@@ -455,16 +511,13 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
         userModel
       );
       return;
-    } else if (answer === "tidak") {
-      await closeSession(session, chatId, waClient);
-      return;
-    } else if (answer === "batal") {
+    } else if (answer === "tidak" || answer === "batal") {
       await closeSession(session, chatId, waClient);
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Balas *ya* jika ingin update data, *tidak* untuk kembali, atau *batal* untuk menutup sesi."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk update data atau *tidak* untuk keluar."
     );
   },
 };
