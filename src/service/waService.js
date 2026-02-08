@@ -4500,7 +4500,7 @@ if (shouldInitWhatsAppClients) {
 
   const initPromises = clientsToInit.map(({ label, client }) => {
     writeWaStructuredLog("info", buildWaStructuredLog({ clientId: client?.clientId || null, label, event: "startup" }));
-    return client.connect().catch((err) => {
+    return client.initialize().catch((err) => {
       writeWaStructuredLog("error", buildWaStructuredLog({ clientId: client?.clientId || null, label, event: "fatal_init_error", errorCode: err?.code || "INIT_FAILED", errorMessage: err?.message || String(err) }));
     });
   });
