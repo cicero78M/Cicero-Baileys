@@ -14,6 +14,7 @@ import {
   formatFieldUpdatePrompt,
   formatUpdateSuccess,
   formatOptionsList,
+  getFieldDisplayName,
 } from "./userMenuHelpers.js";
 import {
   validateNRP,
@@ -369,7 +370,7 @@ export const userMenuHandlers = {
     
     // Show prompt with current value
     const fieldInfo = getFieldInfo(field, currentUser);
-    const prompt = formatFieldUpdatePrompt(field, allowedFields[idx].label, fieldInfo.value || fieldInfo.currentValue);
+    const prompt = formatFieldUpdatePrompt(field, allowedFields[idx].label, fieldInfo.value);
     await waClient.sendMessage(chatId, prompt);
   },
 
@@ -474,10 +475,7 @@ export const userMenuHandlers = {
       
       // Format display value
       const displayValue = (dbField === "insta" || dbField === "tiktok") ? `@${value}` : value;
-      const fieldDisplayName = dbField === "title" ? "Pangkat" : 
-                              dbField === "divisi" ? "Satfung" : 
-                              dbField === "desa" ? "Desa Binaan" : 
-                              field.charAt(0).toUpperCase() + field.slice(1);
+      const fieldDisplayName = getFieldDisplayName(dbField);
       
       const successMsg = formatUpdateSuccess(fieldDisplayName, displayValue, user_id);
       await waClient.sendMessage(chatId, successMsg);

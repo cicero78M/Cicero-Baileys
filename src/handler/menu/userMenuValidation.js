@@ -30,7 +30,13 @@ export function validateNRP(input) {
     return {
       valid: false,
       digits: '',
-      error: '❌ NRP/NIP harus berupa angka. Sistem otomatis menghapus karakter non-angka sehingga pastikan angka yang tersisa membentuk NRP/NIP yang benar.\nContoh: 87020990\nKetik *batal* untuk keluar.',
+      error: [
+        '❌ NRP/NIP harus berupa angka.',
+        'Sistem otomatis menghapus karakter non-angka sehingga pastikan angka yang tersisa membentuk NRP/NIP yang benar.',
+        '',
+        'Contoh: 87020990',
+        'Ketik *batal* untuk keluar.',
+      ].join('\n'),
     };
   }
   
@@ -38,7 +44,12 @@ export function validateNRP(input) {
     return {
       valid: false,
       digits: '',
-      error: `❌ NRP/NIP harus terdiri dari ${FIELD_LIMITS.nrp.min}-${FIELD_LIMITS.nrp.max} digit angka setelah karakter non-angka dibuang.\nContoh: 87020990\nKetik *batal* untuk keluar.`,
+      error: [
+        `❌ NRP/NIP harus terdiri dari ${FIELD_LIMITS.nrp.min}-${FIELD_LIMITS.nrp.max} digit angka setelah karakter non-angka dibuang.`,
+        '',
+        'Contoh: 87020990',
+        'Ketik *batal* untuk keluar.',
+      ].join('\n'),
     };
   }
   
@@ -88,7 +99,13 @@ export function validateInstagram(input) {
     return {
       valid: false,
       username: '',
-      error: '❌ Input Instagram tidak valid! Masukkan *link profil* atau *username Instagram*\nContoh: https://www.instagram.com/username atau @username\nKetik *batal* untuk membatalkan.',
+      error: [
+        '❌ Input Instagram tidak valid!',
+        'Masukkan *link profil* atau *username Instagram*',
+        '',
+        'Contoh: https://instagram.com/username atau @username',
+        'Ketik *batal* untuk membatalkan.',
+      ].join('\n'),
     };
   }
   
@@ -106,7 +123,12 @@ export function validateInstagram(input) {
     return {
       valid: false,
       username: '',
-      error: '❌ Username tersebut adalah akun sistem/admin. Gunakan akun Instagram Anda sendiri.\nKetik *batal* untuk membatalkan.',
+      error: [
+        '❌ Username tersebut adalah akun sistem/admin.',
+        'Gunakan akun Instagram Anda sendiri.',
+        '',
+        'Ketik *batal* untuk membatalkan.',
+      ].join('\n'),
     };
   }
   
@@ -127,7 +149,13 @@ export function validateTikTok(input) {
     return {
       valid: false,
       username: '',
-      error: '❌ Input TikTok tidak valid! Masukkan *link profil* atau *username TikTok*\nContoh: https://www.tiktok.com/@username atau @username\nKetik *batal* untuk membatalkan.',
+      error: [
+        '❌ Input TikTok tidak valid!',
+        'Masukkan *link profil* atau *username TikTok*',
+        '',
+        'Contoh: https://tiktok.com/@username atau @username',
+        'Ketik *batal* untuk membatalkan.',
+      ].join('\n'),
     };
   }
   
@@ -163,7 +191,13 @@ export function validateListSelection(input, options) {
     return {
       valid: false,
       selected: '',
-      error: `❌ Pilihan tidak valid! Pilih sesuai daftar:\n${msgList}\n\nBalas dengan angka atau nama sesuai daftar, atau ketik *batal* untuk membatalkan.`,
+      error: [
+        '❌ Pilihan tidak valid! Pilih sesuai daftar:',
+        '',
+        msgList,
+        '',
+        'Balas dengan angka atau nama sesuai daftar, atau ketik *batal* untuk membatalkan.',
+      ].join('\n'),
     };
   }
   
@@ -180,6 +214,12 @@ export function validateListSelection(input, options) {
   return {
     valid: false,
     selected: '',
-    error: `❌ Pilihan tidak valid! Pilih sesuai daftar:\n${msgList}\n\nBalas dengan angka atau nama sesuai daftar, atau ketik *batal* untuk membatalkan.`,
+    error: [
+      '❌ Pilihan tidak valid! Pilih sesuai daftar:',
+      '',
+      msgList,
+      '',
+      'Balas dengan angka atau nama sesuai daftar, atau ketik *batal* untuk membatalkan.',
+    ].join('\n'),
   };
 }

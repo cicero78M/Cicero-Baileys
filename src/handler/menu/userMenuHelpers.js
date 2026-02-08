@@ -39,7 +39,7 @@ export function formatUserReport(user) {
  * Get field display name and current value
  * @param {string} fieldKey - Field key (e.g., 'pangkat', 'satfung')
  * @param {Object} user - User data object
- * @returns {{displayName: string, currentValue: string}}
+ * @returns {{displayName: string, value: string}}
  */
 export function getFieldInfo(fieldKey, user) {
   const fieldMap = {
@@ -52,7 +52,7 @@ export function getFieldInfo(fieldKey, user) {
     desa: { displayName: 'Desa Binaan', value: user?.desa || '-' },
   };
   
-  return fieldMap[fieldKey] || { displayName: fieldKey, currentValue: '-' };
+  return fieldMap[fieldKey] || { displayName: fieldKey, value: '-' };
 }
 
 /**
@@ -133,6 +133,26 @@ export function formatUpdateSuccess(fieldDisplayName, newValue, userId) {
 }
 
 /**
+ * Get field display name for messages
+ * @param {string} dbField - Database field name
+ * @returns {string} Display name
+ */
+export function getFieldDisplayName(dbField) {
+  const displayNames = {
+    title: 'Pangkat',
+    divisi: 'Satfung',
+    desa: 'Desa Binaan',
+    nama: 'Nama',
+    jabatan: 'Jabatan',
+    insta: 'Instagram',
+    tiktok: 'TikTok',
+    whatsapp: 'WhatsApp',
+  };
+  
+  return displayNames[dbField] || dbField.charAt(0).toUpperCase() + dbField.slice(1);
+}
+
+/**
  * Format list of options with numbers
  * @param {Array<string>} options - List of options
  * @param {string} title - List title
@@ -141,16 +161,4 @@ export function formatUpdateSuccess(fieldDisplayName, newValue, userId) {
 export function formatOptionsList(options, title) {
   const list = options.map((opt, i) => `${i + 1}. ${opt}`).join('\n');
   return `${title}:\n\n${list}\n\nBalas dengan angka atau ketik nama sesuai daftar.\nKetik *batal* untuk membatalkan.`;
-}
-
-/**
- * Get welcome message based on time of day
- * @returns {string} Greeting message
- */
-export function getTimeBasedGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 11) return 'Selamat pagi';
-  if (hour < 15) return 'Selamat siang';
-  if (hour < 18) return 'Selamat sore';
-  return 'Selamat malam';
 }
