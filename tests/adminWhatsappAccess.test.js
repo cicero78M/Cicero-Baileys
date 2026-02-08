@@ -30,9 +30,11 @@ describe('ADMIN_WHATSAPP Access Control', () => {
       expect(isAdminWhatsApp('628222222222@c.us')).toBe(false);
     });
 
-    test('should handle numbers with different formats', () => {
-      // Admin number in different format
+    test('should handle numbers with non-digit characters', () => {
+      // The function strips non-digits, so these should match admin number 628123456789
       expect(isAdminWhatsApp('62-812-345-6789')).toBe(true);
+      expect(isAdminWhatsApp('62 812 345 6789')).toBe(true);
+      expect(isAdminWhatsApp('62(812)345-6789')).toBe(true);
     });
 
     test('should return false for empty or invalid input', () => {
@@ -43,69 +45,58 @@ describe('ADMIN_WHATSAPP Access Control', () => {
   });
 
   describe('Access Control Integration', () => {
-    test('should document access mechanisms for oprrequest', () => {
-      // This test documents the expected behavior
-      const accessMechanisms = [
-        {
-          type: 'ADMIN_WHATSAPP',
-          check: 'isAdminWhatsApp(chatId)',
-          location: 'waService.js line ~2352',
-          action: 'Show client selection via startAdminOprRequestSelection'
-        },
-        {
-          type: 'Operator',
-          check: 'findByOperator(waId)',
-          location: 'waService.js line ~2362',
-          action: 'Direct access to operator menu'
-        },
-        {
-          type: 'Super Admin',
-          check: 'findBySuperAdmin(waId)',
-          location: 'waService.js line ~2363',
-          action: 'Direct access to operator menu'
-        }
-      ];
-
-      expect(accessMechanisms).toHaveLength(3);
-      expect(accessMechanisms[0].type).toBe('ADMIN_WHATSAPP');
+    test('should verify waService.js imports isAdminWhatsApp', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const waServicePath = path.join(process.cwd(), 'src', 'service', 'waService.js');
+      const waServiceContent = fs.readFileSync(waServicePath, 'utf-8');
+      
+      // Verify isAdminWhatsApp is imported
+      expect(waServiceContent).toMatch(/import\s+{[^}]*isAdminWhatsApp[^}]*}\s+from/);
     });
 
-    test('should document access mechanisms for dirrequest', () => {
-      // This test documents the expected behavior
-      const accessMechanisms = [
-        {
-          type: 'ADMIN_WHATSAPP',
-          check: 'isAdminWhatsApp(chatId)',
-          location: 'waService.js line ~2403',
-          action: 'Show directorate client selection'
-        },
-        {
-          type: 'Operator',
-          check: 'findByOperator(waId)',
-          location: 'waService.js line ~2443',
-          action: 'Direct access to dirrequest menu'
-        },
-        {
-          type: 'Super Admin',
-          check: 'findBySuperAdmin(waId)',
-          location: 'waService.js line ~2446',
-          action: 'Direct access to dirrequest menu'
-        }
-      ];
-
-      expect(accessMechanisms).toHaveLength(3);
-      expect(accessMechanisms[0].type).toBe('ADMIN_WHATSAPP');
+    test('should verify oprrequest checks isAdminWhatsApp before other checks', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const waServicePath = path.join(process.cwd(), 'src', 'service', 'waService.js');
+      const waServiceContent = fs.readFileSync(waServicePath, 'utf-8');
+      
+      // Find the oprrequest section
+      const oprRequestMatch = waServiceContent.match(/text\.toLowerCase\(\)\s*===\s*["']oprrequest["']([\s\S]*?)(?=\n\s*if\s*\(text\.toLowerCase\(\)|$)/);
+      expect(oprRequestMatch).toBeTruthy();
+      
+      if (oprRequestMatch) {
+        const oprSection = oprRequestMatch[0];
+        const adminCheckPos = oprSection.indexOf('isAdminWhatsApp');
+        const operatorCheckPos = oprSection.indexOf('findByOperator');
+        
+        // isAdminWhatsApp should come before findByOperator
+        expect(adminCheckPos).toBeGreaterThan(-1);
+        expect(operatorCheckPos).toBeGreaterThan(-1);
+        expect(adminCheckPos).toBeLessThan(operatorCheckPos);
+      }
     });
 
-    test('should verify access control priority order', () => {
-      // ADMIN_WHATSAPP check should come FIRST (highest priority)
-      const accessOrder = [
-        'Check isAdminWhatsApp first',
-        'If not admin, check operator/super admin',
-        'If neither, deny access'
-      ];
-
-      expect(accessOrder[0]).toContain('isAdminWhatsApp first');
+    test('should verify dirrequest checks isAdminWhatsApp before other checks', async () => {
+      const fs = await import('fs');
+      const path = await import('path');
+      const waServicePath = path.join(process.cwd(), 'src', 'service', 'waService.js');
+      const waServiceContent = fs.readFileSync(waServicePath, 'utf-8');
+      
+      // Find the dirrequest section
+      const dirRequestMatch = waServiceContent.match(/text\.toLowerCase\(\)\s*===\s*["']dirrequest["']([\s\S]*?)(?=\n\s*if\s*\(text\.toLowerCase\(\)|$)/);
+      expect(dirRequestMatch).toBeTruthy();
+      
+      if (dirRequestMatch) {
+        const dirSection = dirRequestMatch[0];
+        const adminCheckPos = dirSection.indexOf('isAdminWhatsApp');
+        const operatorCheckPos = dirSection.indexOf('findByOperator');
+        
+        // isAdminWhatsApp should come before findByOperator
+        expect(adminCheckPos).toBeGreaterThan(-1);
+        expect(operatorCheckPos).toBeGreaterThan(-1);
+        expect(adminCheckPos).toBeLessThan(operatorCheckPos);
+      }
     });
   });
 
