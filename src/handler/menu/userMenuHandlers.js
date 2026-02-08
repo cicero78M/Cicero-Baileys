@@ -7,40 +7,22 @@ import {
 } from "../../utils/utilsHelper.js";
 import { saveContactIfNew } from "../../service/googleContactsService.js";
 import { formatToWhatsAppId, normalizeWhatsappNumber } from "../../utils/waHelper.js";
-import { appendSubmenuBackInstruction } from "./menuPromptHelpers.js";
-
-// --- Helper Format Pesan ---
-function formatUserReport(user) {
-  const polresName = user.client_name || user.client_id || "-";
-  return [
-    "👤 *Identitas Anda*",
-    "",
-    `*Nama Polres*: ${polresName}`,
-    `*Nama*     : ${user.nama || "-"}`,
-    `*Pangkat*  : ${user.title || "-"}`,
-    `*NRP/NIP*  : ${user.user_id || "-"}`,
-    `*Satfung*  : ${user.divisi || "-"}`,
-    `*Jabatan*  : ${user.jabatan || "-"}`,
-    ...(user.ditbinmas ? [`*Desa Binaan* : ${user.desa || "-"}`] : []),
-    `*Instagram*: ${user.insta ? "@" + user.insta.replace(/^@/, "") : "-"}`,
-    `*TikTok*   : ${user.tiktok || "-"}`,
-    `*Status*   : ${(user.status === true || user.status === "true") ? "🟢 AKTIF" : "🔴 NONAKTIF"}`,
-  ].join("\n").trim();
-}
-
-function formatFieldList(showDesa = false) {
-  return appendSubmenuBackInstruction(`
-✏️ *Pilih field yang ingin diupdate:*
-1. Nama
-2. Pangkat
-3. Satfung
-4. Jabatan
-5. Instagram
-6. TikTok${showDesa ? "\n7. Desa Binaan" : ""}
-
-Balas angka field di atas atau *batal* untuk keluar.
-`.trim());
-}
+import {
+  formatUserReport,
+  formatFieldList,
+  getFieldInfo,
+  formatFieldUpdatePrompt,
+  formatUpdateSuccess,
+  formatOptionsList,
+  getFieldDisplayName,
+} from "./userMenuHelpers.js";
+import {
+  validateNRP,
+  validateTextField,
+  validateInstagram,
+  validateTikTok,
+  validateListSelection,
+} from "./userMenuValidation.js";
 
 
 export const SESSION_CLOSED_MESSAGE =
@@ -67,38 +49,52 @@ export const userMenuHandlers = {
     if (userByWA) {
       session.isDitbinmas = !!userByWA.ditbinmas;
       const salam = getGreeting();
+      
+      // If already confirmed in this session, skip to update question
       if (session.identityConfirmed && session.user_id === userByWA.user_id) {
-        const msgText = `${salam}, Bapak/Ibu\n${formatUserReport(
-          userByWA
-        )}\n\nApakah Anda ingin melakukan perubahan data?\nBalas *ya* jika ingin update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi.`;
+        const msgText = [
+          `${salam}, Bapak/Ibu`,
+          "",
+          formatUserReport(userByWA),
+          "",
+          "Apakah Anda ingin melakukan perubahan data?",
+          "Balas *ya* untuk update data atau *tidak* untuk keluar.",
+        ].join("\n");
         session.step = "tanyaUpdateMyData";
         await waClient.sendMessage(chatId, msgText.trim());
         return;
       }
-    const msgText = `
-${salam}, Bapak/Ibu
-${formatUserReport(userByWA)}
-
-Apakah data di atas benar milik Anda?
-Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
-`.trim();
+      
+      // First time, show data and ask for confirmation
+      const msgText = [
+        `${salam}, Bapak/Ibu`,
+        "",
+        formatUserReport(userByWA),
+        "",
+        "📋 *Konfirmasi Identitas*",
+        "Apakah data di atas benar milik Anda?",
+        "",
+        "Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk keluar.",
+      ].join("\n");
       session.step = "confirmUserByWaIdentity";
       session.user_id = userByWA.user_id;
       await waClient.sendMessage(chatId, msgText);
       return;
     }
 
+    // No WhatsApp number registered, ask for NRP/NIP
     session.step = "inputUserId";
-    await waClient.sendMessage(
-      chatId,
-      [
-        "Untuk menampilkan data Anda, silakan ketik NRP/NIP Anda (hanya angka).",
-        "Ketik *batal* untuk keluar.",
-        "",
-        "Contoh:",
-        "87020990",
-      ].join("\n")
-    );
+    const msgText = [
+      "🔐 *Registrasi Akun*",
+      "",
+      "Nomor WhatsApp Anda belum terdaftar dalam sistem.",
+      "Untuk menampilkan data Anda, silakan ketik NRP/NIP Anda (hanya angka).",
+      "",
+      "Contoh: 87020990",
+      "",
+      "Ketik *batal* untuk keluar.",
+    ].join("\n");
+    await waClient.sendMessage(chatId, msgText);
   },
 
   // --- Konfirmasi identitas (lihat data)
@@ -109,16 +105,19 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
       session.step = "tanyaUpdateMyData";
       await waClient.sendMessage(
         chatId,
-        "Apakah Anda ingin melakukan perubahan data?\nBalas *ya* jika ingin update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi."
+        [
+          "✅ Identitas berhasil dikonfirmasi.",
+          "",
+          "Apakah Anda ingin melakukan perubahan data?",
+          "Balas *ya* untuk update data atau *tidak* untuk keluar.",
+        ].join("\n")
       );
-    } else if (answer === "tidak") {
-      await closeSession(session, chatId, waClient);
-    } else if (answer === "batal") {
+    } else if (answer === "tidak" || answer === "batal") {
       await closeSession(session, chatId, waClient);
     } else {
       await waClient.sendMessage(
         chatId,
-        "Jawaban tidak dikenali. Balas *ya* jika benar data Anda, *tidak* jika bukan, atau *batal* untuk menutup sesi."
+        "❌ Jawaban tidak dikenali.\n\nBalas *ya* jika data benar milik Anda, *tidak* jika bukan, atau *batal* untuk keluar."
       );
     }
   },
@@ -132,16 +131,13 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
       session.step = "updateAskField";
       await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
       return;
-    } else if (answer === "tidak") {
-      await closeSession(session, chatId, waClient);
-      return;
-    } else if (answer === "batal") {
+    } else if (answer === "tidak" || answer === "batal") {
       await closeSession(session, chatId, waClient);
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Jawaban tidak dikenali. Balas *ya* jika benar data Anda, *tidak* jika bukan, atau *batal* untuk menutup sesi."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk melanjutkan atau *tidak* untuk keluar."
     );
   },
 
@@ -157,45 +153,53 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
       await userMenuHandlers.main(session, chatId, "", waClient, pool, userModel);
       return;
     }
-    const digits = text.replace(/\D/g, "");
-    if (!digits) {
-      await waClient.sendMessage(
-        chatId,
-        "❌ NRP/NIP harus berupa angka. Sistem otomatis menghapus karakter non-angka sehingga pastikan angka yang tersisa membentuk NRP/NIP yang benar.\nContoh: 87020990\nKetik *batal* untuk keluar."
-      );
+    
+    // Validate NRP/NIP using centralized validator
+    const validation = validateNRP(text);
+    if (!validation.valid) {
+      await waClient.sendMessage(chatId, validation.error);
       return;
     }
-    const minLength = 6;
-    const maxLength = 18;
-    if (digits.length < minLength || digits.length > maxLength) {
-      await waClient.sendMessage(
-        chatId,
-        `❌ NRP/NIP harus terdiri dari ${minLength}-${maxLength} digit angka setelah karakter non-angka dibuang.\nContoh: 87020990\nKetik *batal* untuk keluar.`
-      );
-      return;
-    }
+    
+    const digits = validation.digits;
+    
     try {
       const user = await userModel.findUserById(digits);
       if (!user) {
         await waClient.sendMessage(
           chatId,
-          `❌ NRP/NIP *${digits}* tidak ditemukan. Jika yakin benar, hubungi Opr Humas Polres Anda.`
+          [
+            `❌ NRP/NIP *${digits}* tidak ditemukan.`,
+            'Jika yakin benar, hubungi Opr Humas Polres Anda.',
+            '',
+            'Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.',
+          ].join('\n')
         );
-        await waClient.sendMessage(chatId, "Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.");
       } else {
         session.step = "confirmBindUser";
         session.bindUserId = digits;
         await waClient.sendMessage(
           chatId,
-          `NRP/NIP *${digits}* ditemukan. Nomor WhatsApp ini belum terdaftar.\n` +
-            "Apakah Anda ingin menghubungkannya dengan akun tersebut?\n" +
-            "Balas *ya* untuk menghubungkan atau *tidak* untuk membatalkan."
+          [
+            `✅ NRP/NIP *${digits}* ditemukan.`,
+            '',
+            'Nomor WhatsApp ini belum terdaftar. Apakah Anda ingin menghubungkannya dengan akun tersebut?',
+            '',
+            'Balas *ya* untuk menghubungkan atau *tidak* untuk membatalkan.',
+          ].join('\n')
         );
         return;
       }
     } catch (err) {
-      await waClient.sendMessage(chatId, `❌ Gagal mengambil data: ${err.message}`);
-      await waClient.sendMessage(chatId, "Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.");
+      console.error('[userMenuHandlers] Error finding user:', err);
+      await waClient.sendMessage(
+        chatId,
+        [
+          '❌ Terjadi kesalahan saat mengambil data. Silakan coba lagi.',
+          '',
+          'Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.',
+        ].join('\n')
+      );
     }
   },
 
@@ -203,36 +207,62 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
     const answer = text.trim().toLowerCase();
     const waNum = normalizeWhatsappNumber(chatId);
     if (answer === "ya") {
-      const user_id = session.bindUserId;
-      await userModel.updateUserField(user_id, "whatsapp", waNum);
-      await saveContactIfNew(formatToWhatsAppId(waNum));
-      const user = await userModel.findUserById(user_id);
-      session.isDitbinmas = !!user.ditbinmas;
-      await waClient.sendMessage(
-        chatId,
-        `✅ Nomor WhatsApp telah dihubungkan ke NRP/NIP *${user_id}*. Berikut datanya:\n` +
-          formatUserReport(user)
-      );
-      session.identityConfirmed = true;
-      session.user_id = user_id;
-      session.step = "tanyaUpdateMyData";
-      await waClient.sendMessage(
-        chatId,
-        "Apakah Anda ingin melakukan perubahan data?\nBalas *ya* jika ingin update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi."
-      );
+      try {
+        const user_id = session.bindUserId;
+        await userModel.updateUserField(user_id, "whatsapp", waNum);
+        
+        try {
+          await saveContactIfNew(formatToWhatsAppId(waNum));
+        } catch (err) {
+          console.error('[confirmBindUser] Error saving contact:', err);
+          // Non-critical, continue
+        }
+        
+        const user = await userModel.findUserById(user_id);
+        session.isDitbinmas = !!user.ditbinmas;
+        await waClient.sendMessage(
+          chatId,
+          [
+            `✅ *Berhasil Terhubung*`,
+            "",
+            `Nomor WhatsApp telah dihubungkan ke NRP/NIP *${user_id}*.`,
+            "",
+            "Berikut data Anda:",
+            "",
+            formatUserReport(user),
+          ].join("\n")
+        );
+        session.identityConfirmed = true;
+        session.user_id = user_id;
+        session.step = "tanyaUpdateMyData";
+        await waClient.sendMessage(
+          chatId,
+          [
+            "Apakah Anda ingin melakukan perubahan data?",
+            "Balas *ya* untuk update data atau *tidak* untuk keluar.",
+          ].join("\n")
+        );
+      } catch (err) {
+        console.error('[confirmBindUser] Error binding user:', err);
+        await waClient.sendMessage(
+          chatId,
+          "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*."
+        );
+        session.exit = true;
+      }
       return;
     }
-    if (answer === "tidak") {
+    if (answer === "tidak" || answer === "batal") {
       await waClient.sendMessage(
         chatId,
-        "Nomor WhatsApp ini tetap tidak terhubung dengan NRP/NIP. Jika ingin mencoba lagi, ketik *userrequest* atau hubungi operator bila membutuhkan bantuan."
+        "✅ Proses dibatalkan. Nomor WhatsApp tidak dihubungkan.\n\nKetik *userrequest* untuk mencoba lagi atau hubungi operator jika membutuhkan bantuan."
       );
       session.exit = true;
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Balas *ya* untuk menghubungkan nomor, atau *tidak* untuk membatalkan."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk menghubungkan nomor atau *tidak* untuk membatalkan."
     );
   },
 
@@ -240,27 +270,43 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
     const ans = text.trim().toLowerCase();
     const waNum = normalizeWhatsappNumber(chatId);
     if (ans === "ya") {
-      const nrp = session.updateUserId;
-      await userModel.updateUserField(nrp, "whatsapp", waNum);
-      await saveContactIfNew(formatToWhatsAppId(waNum));
-      await waClient.sendMessage(chatId, `✅ Nomor berhasil dihubungkan ke NRP/NIP *${nrp}*.`);
-      session.identityConfirmed = true;
-      session.user_id = nrp;
-      session.step = "updateAskField";
-      await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
+      try {
+        const nrp = session.updateUserId;
+        await userModel.updateUserField(nrp, "whatsapp", waNum);
+        
+        try {
+          await saveContactIfNew(formatToWhatsAppId(waNum));
+        } catch (err) {
+          console.error('[confirmBindUpdate] Error saving contact:', err);
+          // Non-critical, continue
+        }
+        
+        await waClient.sendMessage(chatId, `✅ Nomor berhasil dihubungkan ke NRP/NIP *${nrp}*.`);
+        session.identityConfirmed = true;
+        session.user_id = nrp;
+        session.step = "updateAskField";
+        await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
+      } catch (err) {
+        console.error('[confirmBindUpdate] Error updating WhatsApp field:', err);
+        await waClient.sendMessage(
+          chatId,
+          "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*."
+        );
+        session.exit = true;
+      }
       return;
     }
-    if (ans === "tidak") {
+    if (ans === "tidak" || ans === "batal") {
       await waClient.sendMessage(
         chatId,
-        "Nomor WhatsApp ini tidak dihubungkan ke NRP/NIP. Ketik *userrequest* untuk kembali ke menu atau hubungi operator bila membutuhkan bantuan."
+        "✅ Proses dibatalkan. Nomor WhatsApp tidak dihubungkan.\n\nKetik *userrequest* untuk kembali ke menu atau hubungi operator jika membutuhkan bantuan."
       );
       session.exit = true;
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Balas *ya* untuk menghubungkan nomor, atau *tidak* untuk membatalkan."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk menghubungkan nomor atau *tidak* untuk membatalkan."
     );
   },
 
@@ -297,22 +343,24 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
     const idx = parseInt(lower) - 1;
     const field = allowedFields[idx].key;
     session.updateField = field;
+    
+    // Get current user data to show current value
+    let currentUser = null;
+    try {
+      currentUser = await userModel.findUserById(session.updateUserId);
+    } catch (e) {
+      console.error('[updateAskField] Error fetching user:', e);
+    }
 
     // Tampilkan list pangkat/satfung jika perlu
     if (field === "pangkat") {
       const titles = await userModel.getAvailableTitles();
       if (titles && titles.length) {
         const sorted = sortTitleKeys(titles, titles);
-        let msgList = sorted
-          .map((t, i) => `${i + 1}. ${t}`)
-          .join("\n");
         // Simpan list pangkat di session agar bisa dipakai saat validasi
         session.availableTitles = sorted;
-        await waClient.sendMessage(chatId, "Daftar pangkat yang dapat dipilih:\n" + msgList);
-        await waClient.sendMessage(
-          chatId,
-          "Balas dengan angka dari daftar atau ketik nama pangkat persis. Ketik *batal* untuk membatalkan."
-        );
+        const listMsg = formatOptionsList(sorted, "Daftar pangkat yang dapat dipilih");
+        await waClient.sendMessage(chatId, listMsg);
       }
     }
     if (field === "satfung") {
@@ -320,44 +368,31 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
       try {
         const user = await userModel.findUserById(session.updateUserId);
         clientId = user?.client_id || null;
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error('[updateAskField] Error fetching clientId:', e); }
       const satfung = userModel.mergeStaticDivisions(
         await userModel.getAvailableSatfung(clientId)
       );
       if (satfung && satfung.length) {
         const sorted = sortDivisionKeys(satfung);
-        let msgList = sorted.map((s, i) => `${i + 1}. ${s}`).join("\n");
         session.availableSatfung = sorted;
-        await waClient.sendMessage(
-          chatId,
-          "Daftar satfung yang dapat dipilih:\n" + msgList
-        );
-        await waClient.sendMessage(
-          chatId,
-          "Balas dengan angka dari daftar atau ketik nama satfung persis. Ketik *batal* untuk membatalkan."
-        );
+        const listMsg = formatOptionsList(sorted, "Daftar satfung yang dapat dipilih");
+        await waClient.sendMessage(chatId, listMsg);
       }
     }
+    
     session.step = "updateAskValue";
-    let extra = "";
-    if (field === "pangkat") extra = " (pilih dari daftar pangkat)";
-    else if (field === "satfung") extra = " (pilih dari daftar satfung)";
-    else if (field === "insta")
-      extra = " (masukkan link profil atau username Instagram)";
-    else if (field === "tiktok")
-      extra = " (masukkan link profil atau username TikTok)";
-
-    await waClient.sendMessage(
-      chatId,
-      `Ketik nilai baru untuk field *${allowedFields[idx].label}*${extra}. Balas dengan angka atau nama pada daftar, atau ketik *batal* untuk membatalkan:`
-    );
+    
+    // Show prompt with current value
+    const fieldInfo = getFieldInfo(field, currentUser);
+    const prompt = formatFieldUpdatePrompt(field, allowedFields[idx].label, fieldInfo.value);
+    await waClient.sendMessage(chatId, prompt);
   },
 
   updateAskValue: async (session, chatId, text, waClient, pool, userModel) => {
     const lower = text.trim().toLowerCase();
     if (lower === "batal") {
       session.exit = true;
-      await waClient.sendMessage(chatId, "Perubahan dibatalkan. Ketik *userrequest* untuk memulai lagi.");
+      await waClient.sendMessage(chatId, "✅ Perubahan dibatalkan. Ketik *userrequest* untuk memulai lagi.");
       return;
     }
     const user_id = session.updateUserId;
@@ -365,132 +400,114 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
     let value = text.trim();
 
     // Normalisasi field DB
-    if (field === "pangkat") field = "title";
-    if (field === "satfung") field = "divisi";
+    const dbField = field === "pangkat" ? "title" : field === "satfung" ? "divisi" : field;
 
-    // Validasi khusus
-    if (field === "title") {
-      const titles = session.availableTitles || (await userModel.getAvailableTitles());
-      const normalizedTitles = titles.map((t) => t.toUpperCase());
-      if (/^\d+$/.test(value)) {
-        const idx = parseInt(value) - 1;
-        if (idx >= 0 && idx < titles.length) {
-          value = titles[idx];
-        } else {
-          const msgList = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
-          await waClient.sendMessage(chatId, `❌ Pangkat tidak valid! Pilih sesuai daftar:\n${msgList}`);
+    // Validasi khusus per field dengan centralized validators
+    try {
+      if (dbField === "title") {
+        const titles = session.availableTitles || (await userModel.getAvailableTitles());
+        const validation = validateListSelection(value, titles);
+        if (!validation.valid) {
+          await waClient.sendMessage(chatId, validation.error);
           return;
         }
-      } else if (!normalizedTitles.includes(value.toUpperCase())) {
-        const msgList = titles.map((t, i) => `${i + 1}. ${t}`).join("\n");
-        await waClient.sendMessage(chatId, `❌ Pangkat tidak valid! Pilih sesuai daftar:\n${msgList}`);
-        return;
-      }
-    }
-    if (field === "divisi") {
-      let clientId = null;
-      try {
-        const user = await userModel.findUserById(session.updateUserId);
-        clientId = user?.client_id || null;
-      } catch (e) { console.error(e); }
-      const satfungList = userModel.mergeStaticDivisions(
-        session.availableSatfung || (await userModel.getAvailableSatfung(clientId))
-      );
-      const normalizedSatfung = satfungList.map((s) => s.toUpperCase());
-      if (/^\d+$/.test(value)) {
-        const idx = parseInt(value, 10) - 1;
-        if (idx >= 0 && idx < satfungList.length) {
-          value = satfungList[idx];
-        } else {
-          const msgList = satfungList.map((s, i) => `${i + 1}. ${s}`).join("\n");
+        value = validation.selected;
+      } else if (dbField === "divisi") {
+        let clientId = null;
+        try {
+          const user = await userModel.findUserById(session.updateUserId);
+          clientId = user?.client_id || null;
+        } catch (e) { 
+          console.error('[updateAskValue] Error fetching clientId:', e); 
+        }
+        const satfungList = userModel.mergeStaticDivisions(
+          session.availableSatfung || (await userModel.getAvailableSatfung(clientId))
+        );
+        const validation = validateListSelection(value, satfungList);
+        if (!validation.valid) {
+          await waClient.sendMessage(chatId, validation.error);
+          return;
+        }
+        value = validation.selected;
+      } else if (dbField === "insta") {
+        const validation = validateInstagram(value);
+        if (!validation.valid) {
+          await waClient.sendMessage(chatId, validation.error);
+          return;
+        }
+        value = validation.username;
+        
+        // Check for duplicate Instagram
+        const existing = await userModel.findUserByInsta(value);
+        if (existing && existing.user_id !== user_id) {
           await waClient.sendMessage(
             chatId,
-            `❌ Satfung tidak valid! Pilih sesuai daftar:\n${msgList}`
+            "❌ Akun Instagram tersebut sudah terdaftar pada pengguna lain. Silakan gunakan akun lain atau ketik *batal* untuk membatalkan."
           );
           return;
         }
-      } else if (!normalizedSatfung.includes(value.toUpperCase())) {
-        const msgList = satfungList.map((s, i) => `${i + 1}. ${s}`).join("\n");
-        await waClient.sendMessage(
-          chatId,
-          `❌ Satfung tidak valid! Pilih sesuai daftar:\n${msgList}`
-        );
-        return;
+      } else if (dbField === "tiktok") {
+        const validation = validateTikTok(value);
+        if (!validation.valid) {
+          await waClient.sendMessage(chatId, validation.error);
+          return;
+        }
+        value = validation.username;
+        
+        // Check for duplicate TikTok
+        const existing = await userModel.findUserByTiktok(value);
+        if (existing && existing.user_id !== user_id) {
+          await waClient.sendMessage(
+            chatId,
+            "❌ Akun TikTok tersebut sudah terdaftar pada pengguna lain. Silakan gunakan akun lain atau ketik *batal* untuk membatalkan."
+          );
+          return;
+        }
+      } else if (dbField === "whatsapp") {
+        value = normalizeWhatsappNumber(value);
+      } else if (["nama", "jabatan", "desa"].includes(dbField)) {
+        const validation = validateTextField(dbField, value);
+        if (!validation.valid) {
+          await waClient.sendMessage(chatId, validation.error);
+          return;
+        }
+        value = validation.value;
       }
-    }
-    if (field === "insta") {
-      const igMatch = value.match(
-        /^(?:https?:\/\/(?:www\.)?instagram\.com\/)?@?([A-Za-z0-9._]+)\/?(?:\?.*)?$/i
-      );
-      if (!igMatch) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Input Instagram tidak valid! Masukkan *link profil* atau *username Instagram* (contoh: https://www.instagram.com/username atau @username)"
-        );
-        return;
-      }
-      value = igMatch[1].toLowerCase();
-      if (value === "cicero_devs") {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Instagram tersebut adalah milik Super Admin. Gunakan akun Instagram Anda sendiri."
-        );
-        return;
-      }
-      const existing = await userModel.findUserByInsta(value);
-      if (existing && existing.user_id !== user_id) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Akun Instagram tersebut sudah terdaftar pada pengguna lain."
-        );
-        return;
-      }
-    }
-    if (field === "tiktok") {
-      const ttMatch = value.match(
-        /^(?:https?:\/\/(?:www\.)?tiktok\.com\/@)?@?([A-Za-z0-9._]+)\/?(?:\?.*)?$/i
-      );
-      if (!ttMatch) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Input TikTok tidak valid! Masukkan *link profil* atau *username TikTok* (contoh: https://www.tiktok.com/@username atau @username)"
-        );
-        return;
-      }
-      value = ttMatch[1].toLowerCase();
-      const existing = await userModel.findUserByTiktok(value);
-      if (existing && existing.user_id !== user_id) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Akun TikTok tersebut sudah terdaftar pada pengguna lain."
-        );
-        return;
-      }
-    }
-    if (field === "whatsapp") value = normalizeWhatsappNumber(value);
-    if (["nama", "title", "divisi", "jabatan", "desa"].includes(field)) value = value.toUpperCase();
 
-    await userModel.updateUserField(user_id, field, value);
-    if (field === "whatsapp" && value) {
-      await saveContactIfNew(formatToWhatsAppId(value));
+      // Update database with proper error handling
+      await userModel.updateUserField(user_id, dbField, value);
+      
+      // Save contact if WhatsApp field was updated
+      if (dbField === "whatsapp" && value) {
+        try {
+          await saveContactIfNew(formatToWhatsAppId(value));
+        } catch (err) {
+          console.error('[updateAskValue] Error saving contact:', err);
+          // Non-critical error, continue
+        }
+      }
+      
+      // Format display value
+      const displayValue = (dbField === "insta" || dbField === "tiktok") ? `@${value}` : value;
+      const fieldDisplayName = getFieldDisplayName(dbField);
+      
+      const successMsg = formatUpdateSuccess(fieldDisplayName, displayValue, user_id);
+      await waClient.sendMessage(chatId, successMsg);
+      
+      // Clean up session data
+      delete session.availableTitles;
+      delete session.availableSatfung;
+      
+      // Return to main menu
+      await userMenuHandlers.main(session, chatId, "", waClient, pool, userModel);
+      
+    } catch (err) {
+      console.error('[updateAskValue] Error updating field:', err);
+      await waClient.sendMessage(
+        chatId,
+        "❌ Terjadi kesalahan saat memperbarui data. Silakan coba lagi atau ketik *batal* untuk keluar."
+      );
     }
-    const displayValue =
-      field === "insta" || field === "tiktok" ? `@${value}` : value;
-    await waClient.sendMessage(
-      chatId,
-      `✅ Data *${
-        field === "title"
-          ? "pangkat"
-          : field === "divisi"
-          ? "satfung"
-          : field === "desa"
-          ? "desa binaan"
-          : field
-      }* untuk NRP ${user_id} berhasil diupdate menjadi *${displayValue}*.`
-    );
-    delete session.availableTitles;
-    delete session.availableSatfung;
-    await userMenuHandlers.main(session, chatId, "", waClient, pool, userModel);
   },
 
   tanyaUpdateMyData: async (session, chatId, text, waClient, pool, userModel) => {
@@ -506,16 +523,13 @@ Balas *ya* jika benar, *tidak* jika bukan, atau *batal* untuk menutup sesi.
         userModel
       );
       return;
-    } else if (answer === "tidak") {
-      await closeSession(session, chatId, waClient);
-      return;
-    } else if (answer === "batal") {
+    } else if (answer === "tidak" || answer === "batal") {
       await closeSession(session, chatId, waClient);
       return;
     }
     await waClient.sendMessage(
       chatId,
-      "Balas *ya* jika ingin update data, *tidak* untuk kembali, atau *batal* untuk menutup sesi."
+      "❌ Jawaban tidak dikenali.\n\nBalas *ya* untuk update data atau *tidak* untuk keluar."
     );
   },
 };
