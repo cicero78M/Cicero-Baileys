@@ -222,6 +222,38 @@ test('getAdminClientIds returns empty array when no admin numbers configured', a
   process.env.ADMIN_WHATSAPP = originalEnv;
 });
 
+test('getAdminClientIds correctly filters null and empty client_ids', async () => {
+  const { getAdminClientIds } = await import('../src/utils/waHelper.js');
+  
+  const mockQuery = jest.fn().mockResolvedValue({
+    rows: [
+      { client_id: 'POLDA_JATENG' },
+      { client_id: null },
+      { client_id: '' },
+      { client_id: 'DITBINMAS' }
+    ]
+  });
+  
+  const originalEnv = process.env.ADMIN_WHATSAPP;
+  process.env.ADMIN_WHATSAPP = '628123456789';
+  
+  const result = await getAdminClientIds(mockQuery);
+  
+  // Should only return non-null, non-empty values
+  expect(result).toEqual(['POLDA_JATENG', 'DITBINMAS']);
+  // Verify the query includes the filter conditions
+  expect(mockQuery).toHaveBeenCalledWith(
+    expect.stringMatching(/client_id IS NOT NULL/),
+    expect.any(Array)
+  );
+  expect(mockQuery).toHaveBeenCalledWith(
+    expect.stringMatching(/client_id <> ''/),
+    expect.any(Array)
+  );
+  
+  process.env.ADMIN_WHATSAPP = originalEnv;
+});
+
 test('hasSameClientIdAsAdmin returns true when user has admin client_id', async () => {
   const { hasSameClientIdAsAdmin } = await import('../src/utils/waHelper.js');
   
