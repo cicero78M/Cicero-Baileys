@@ -168,24 +168,38 @@ export const userMenuHandlers = {
       if (!user) {
         await waClient.sendMessage(
           chatId,
-          `❌ NRP/NIP *${digits}* tidak ditemukan. Jika yakin benar, hubungi Opr Humas Polres Anda.`
+          [
+            `❌ NRP/NIP *${digits}* tidak ditemukan.`,
+            'Jika yakin benar, hubungi Opr Humas Polres Anda.',
+            '',
+            'Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.',
+          ].join('\n')
         );
-        await waClient.sendMessage(chatId, "Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.");
       } else {
         session.step = "confirmBindUser";
         session.bindUserId = digits;
         await waClient.sendMessage(
           chatId,
-          `✅ NRP/NIP *${digits}* ditemukan.\n\n` +
-            "Nomor WhatsApp ini belum terdaftar. Apakah Anda ingin menghubungkannya dengan akun tersebut?\n\n" +
-            "Balas *ya* untuk menghubungkan atau *tidak* untuk membatalkan."
+          [
+            `✅ NRP/NIP *${digits}* ditemukan.`,
+            '',
+            'Nomor WhatsApp ini belum terdaftar. Apakah Anda ingin menghubungkannya dengan akun tersebut?',
+            '',
+            'Balas *ya* untuk menghubungkan atau *tidak* untuk membatalkan.',
+          ].join('\n')
         );
         return;
       }
     } catch (err) {
       console.error('[userMenuHandlers] Error finding user:', err);
-      await waClient.sendMessage(chatId, "❌ Terjadi kesalahan saat mengambil data. Silakan coba lagi.");
-      await waClient.sendMessage(chatId, "Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.");
+      await waClient.sendMessage(
+        chatId,
+        [
+          '❌ Terjadi kesalahan saat mengambil data. Silakan coba lagi.',
+          '',
+          'Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.',
+        ].join('\n')
+      );
     }
   },
 
