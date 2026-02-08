@@ -135,18 +135,18 @@ export function isAdminWhatsApp(number) {
  * Get client IDs (LIDs) associated with admin WhatsApp numbers
  * Returns an array of unique client_ids from users with admin WhatsApp numbers
  */
-export async function getAdminClientIds(userModelOrQuery) {
+export async function getAdminClientIds(queryFn) {
   const adminWaList = getAdminWhatsAppList();
   if (!adminWaList.length) return [];
   
   const clientIds = new Set();
   
   // Import query function if we need it
-  let queryFn = userModelOrQuery;
-  if (!queryFn || typeof queryFn !== 'function') {
+  let query = queryFn;
+  if (!query || typeof query !== 'function') {
     // Fallback to importing from repository/db.js
     const { query: dbQuery } = await import('../repository/db.js');
-    queryFn = dbQuery;
+    query = dbQuery;
   }
   
   // Get normalized admin numbers (just digits with 62 prefix)
@@ -154,7 +154,7 @@ export async function getAdminClientIds(userModelOrQuery) {
   
   try {
     // Query users table to find client_ids for admin WhatsApp numbers
-    const { rows } = await queryFn(
+    const { rows } = await query(
       `SELECT DISTINCT client_id 
        FROM "user" 
        WHERE whatsapp = ANY($1::text[]) 
@@ -178,14 +178,14 @@ export async function getAdminClientIds(userModelOrQuery) {
 /**
  * Check if a user (by WhatsApp number) has the same client_id (LID) as any admin user
  */
-export async function hasSameClientIdAsAdmin(waNumber, userModelOrQuery) {
+export async function hasSameClientIdAsAdmin(waNumber, queryFn) {
   if (!waNumber) return false;
   
   // Import query function if we need it
-  let queryFn = userModelOrQuery;
-  if (!queryFn || typeof queryFn !== 'function') {
+  let query = queryFn;
+  if (!query || typeof query !== 'function') {
     const { query: dbQuery } = await import('../repository/db.js');
-    queryFn = dbQuery;
+    query = dbQuery;
   }
   
   // Normalize the WhatsApp number
@@ -193,11 +193,11 @@ export async function hasSameClientIdAsAdmin(waNumber, userModelOrQuery) {
   
   try {
     // Get admin client IDs
-    const adminClientIds = await getAdminClientIds(queryFn);
+    const adminClientIds = await getAdminClientIds(query);
     if (!adminClientIds.length) return false;
     
     // Check if user has one of the admin client IDs
-    const { rows } = await queryFn(
+    const { rows } = await query(
       `SELECT 1 
        FROM "user" 
        WHERE whatsapp = $1 

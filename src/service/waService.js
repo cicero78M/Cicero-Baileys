@@ -2372,7 +2372,7 @@ export function createHandleMessage(waClient, options = {}) {
     if (!operator && !superAdmin && !hasSameLidAsAdmin) {
       await waClient.sendMessage(
         chatId,
-        "❌ Menu ini hanya dapat diakses oleh operator yang terdaftar atau pengguna dengan LID yang sama dengan admin."
+        "❌ Menu ini hanya dapat diakses oleh operator yang terdaftar atau pengguna dalam organisasi yang sama dengan admin."
       );
       return;
     }
@@ -2504,7 +2504,7 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     if (!operator && !superAdmin && !hasSameLidAsAdmin) {
       await waClient.sendMessage(
         chatId,
-        "❌ Menu ini hanya dapat diakses oleh administrator WhatsApp, operator/super admin client Direktorat, atau pengguna dengan LID yang sama dengan admin."
+        "❌ Menu ini hanya dapat diakses oleh administrator WhatsApp, operator/super admin client Direktorat, atau pengguna dalam organisasi yang sama dengan admin."
       );
       return;
     }
