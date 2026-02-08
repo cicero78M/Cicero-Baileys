@@ -59,7 +59,7 @@ export const userMenuHandlers = {
         formatUserReport(userByWA),
         "",
         "Apakah Anda ingin melakukan perubahan data?",
-        "Balas *ya* untuk update data atau *batal* untuk menutup sesi.",
+        "Balas *ya* untuk update data, *tidak* untuk keluar, atau *batal* untuk menutup sesi.",
       ].join("\n");
       session.step = "tanyaUpdateMyData";
       await waClient.sendMessage(chatId, msgText.trim());
