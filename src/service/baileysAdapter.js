@@ -365,6 +365,7 @@ export async function createBaileysClient(clientId = 'wa-admin') {
     off: (event, handler) => emitter.off(event, handler),
     removeListener: (event, handler) => emitter.removeListener(event, handler),
     removeAllListeners: (event) => emitter.removeAllListeners(event),
+    listenerCount: (event) => emitter.listenerCount(event),
 
     // Core methods
     async initialize() {
