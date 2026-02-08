@@ -2670,6 +2670,24 @@ export const dirRequestHandlers = {
   },
 
   async choose_client(session, chatId, text, waClient) {
+    // If selected_client_id is already set (operator/super admin direct access)
+    if (session.selected_client_id && (!session.dir_clients || session.dir_clients.length === 0)) {
+      const clientId = session.selected_client_id.toUpperCase();
+      session.selectedClientId = clientId;
+      session.dir_client_id = clientId;
+      session.client_ids = [clientId];
+      try {
+        const client = await findClientById(clientId);
+        session.clientName = client?.nama || clientId;
+      } catch {
+        session.clientName = clientId;
+      }
+      session.clientNameId = clientId;
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
     const clients = session.dir_clients || [];
     const choiceList = clients
       .map((client, idx) => {
