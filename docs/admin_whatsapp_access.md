@@ -4,6 +4,8 @@
 
 The system provides **multiple access mechanisms** for `dirrequest` and `oprrequest` menus. Users in `ADMIN_WHATSAPP` (from `.env`) have the **highest priority** access to both menus.
 
+**Important:** The admin number `6281235114745` must be included in the `ADMIN_WHATSAPP` environment variable to have access to these menus.
+
 ## Configuration
 
 ### Environment Variable
@@ -11,7 +13,8 @@ The system provides **multiple access mechanisms** for `dirrequest` and `oprrequ
 Add admin WhatsApp numbers to your `.env` file:
 
 ```env
-ADMIN_WHATSAPP=628123456789,628987654321,628555555555
+# Include 6281235114745 and other admin numbers
+ADMIN_WHATSAPP=6281235114745,628123456789,628987654321
 ```
 
 **Format:**
@@ -22,14 +25,14 @@ ADMIN_WHATSAPP=628123456789,628987654321,628555555555
 ### Example Configurations
 
 ```env
-# Single admin
-ADMIN_WHATSAPP=628123456789
+# Single admin (the required admin number)
+ADMIN_WHATSAPP=6281235114745
 
-# Multiple admins
-ADMIN_WHATSAPP=628123456789,628987654321
+# Multiple admins (including the required admin number)
+ADMIN_WHATSAPP=6281235114745,628123456789,628987654321
 
 # With @c.us suffix (also works)
-ADMIN_WHATSAPP=628123456789@c.us,628987654321@c.us
+ADMIN_WHATSAPP=6281235114745@c.us,628123456789@c.us
 ```
 
 ## Access Mechanisms
