@@ -1,7 +1,4 @@
 import TelegramBot from 'node-telegram-bot-api';
-import * as dashboardUserModel from '../model/dashboardUserModel.js';
-import { formatToWhatsAppId, safeSendMessage } from '../utils/waHelper.js';
-import waClient, { waitForWaReady } from './waService.js';
 
 let bot = null;
 let isInitialized = false;
@@ -79,104 +76,8 @@ export function initTelegramBot() {
       const chatId = msg.chat.id;
       bot.sendMessage(
         chatId,
-        '👋 Selamat datang di Cicero Bot!\n\nBot ini digunakan untuk approval dashboard user.\n\nGunakan perintah berikut:\n/approve <username> - Setujui registrasi user\n/deny <username> - Tolak registrasi user'
+        '👋 Selamat datang di Cicero Bot!\n\nGunakan perintah /help untuk melihat perintah yang tersedia.'
       );
-    });
-
-    // Handle /approve command
-    bot.onText(/\/approve (.+)/, async (msg, match) => {
-      const chatId = msg.chat.id;
-      const username = match[1]?.trim();
-
-      // Check if admin
-      if (String(chatId) !== adminChatId) {
-        bot.sendMessage(chatId, '❌ Anda tidak memiliki akses untuk perintah ini.');
-        return;
-      }
-
-      if (!username) {
-        bot.sendMessage(chatId, '❌ Format salah! Gunakan: /approve <username>');
-        return;
-      }
-
-      try {
-        const usr = await dashboardUserModel.findByUsername(username);
-        if (!usr) {
-          bot.sendMessage(chatId, `❌ Username ${username} tidak ditemukan.`);
-          return;
-        }
-
-        await dashboardUserModel.updateStatus(usr.dashboard_user_id, true);
-        bot.sendMessage(chatId, `✅ User ${usr.username} telah disetujui.`);
-
-        // Send notification to user via WhatsApp
-        if (usr.whatsapp) {
-          try {
-            await waitForWaReady();
-            const wid = formatToWhatsAppId(usr.whatsapp);
-            await safeSendMessage(
-              waClient,
-              wid,
-              `✅ Registrasi dashboard Anda telah disetujui.\nUsername: ${usr.username}`
-            );
-          } catch (err) {
-            console.warn(
-              `[TELEGRAM] Gagal mengirim notifikasi WA untuk ${usr.username}: ${err.message}`
-            );
-          }
-        }
-      } catch (err) {
-        console.error('[TELEGRAM] Error saat approve user:', err);
-        bot.sendMessage(chatId, `❌ Terjadi kesalahan: ${err.message}`);
-      }
-    });
-
-    // Handle /deny command
-    bot.onText(/\/deny (.+)/, async (msg, match) => {
-      const chatId = msg.chat.id;
-      const username = match[1]?.trim();
-
-      // Check if admin
-      if (String(chatId) !== adminChatId) {
-        bot.sendMessage(chatId, '❌ Anda tidak memiliki akses untuk perintah ini.');
-        return;
-      }
-
-      if (!username) {
-        bot.sendMessage(chatId, '❌ Format salah! Gunakan: /deny <username>');
-        return;
-      }
-
-      try {
-        const usr = await dashboardUserModel.findByUsername(username);
-        if (!usr) {
-          bot.sendMessage(chatId, `❌ Username ${username} tidak ditemukan.`);
-          return;
-        }
-
-        await dashboardUserModel.updateStatus(usr.dashboard_user_id, false);
-        bot.sendMessage(chatId, `❌ User ${usr.username} telah ditolak.`);
-
-        // Send notification to user via WhatsApp
-        if (usr.whatsapp) {
-          try {
-            await waitForWaReady();
-            const wid = formatToWhatsAppId(usr.whatsapp);
-            await safeSendMessage(
-              waClient,
-              wid,
-              `❌ Registrasi dashboard Anda ditolak.\nUsername: ${usr.username}`
-            );
-          } catch (err) {
-            console.warn(
-              `[TELEGRAM] Gagal mengirim notifikasi WA untuk ${usr.username}: ${err.message}`
-            );
-          }
-        }
-      } catch (err) {
-        console.error('[TELEGRAM] Error saat deny user:', err);
-        bot.sendMessage(chatId, `❌ Terjadi kesalahan: ${err.message}`);
-      }
     });
 
     // Error handling with exponential backoff
@@ -358,7 +259,6 @@ export function stopTelegramBot() {
 
 export default {
   initTelegramBot,
-  sendTelegramApprovalRequest,
   sendTelegramNotification,
   isTelegramEnabled,
   isBotInitialized,
