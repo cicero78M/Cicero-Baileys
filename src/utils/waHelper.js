@@ -131,6 +131,88 @@ export function isAdminWhatsApp(number) {
   return adminNumbers.includes(normalized);
 }
 
+/**
+ * Get client IDs (LIDs) associated with admin WhatsApp numbers
+ * Returns an array of unique client_ids from users with admin WhatsApp numbers
+ */
+export async function getAdminClientIds(userModelOrQuery) {
+  const adminWaList = getAdminWhatsAppList();
+  if (!adminWaList.length) return [];
+  
+  const clientIds = new Set();
+  
+  // Import query function if we need it
+  let queryFn = userModelOrQuery;
+  if (!queryFn || typeof queryFn !== 'function') {
+    // Fallback to importing from repository/db.js
+    const { query: dbQuery } = await import('../repository/db.js');
+    queryFn = dbQuery;
+  }
+  
+  // Get normalized admin numbers (just digits with 62 prefix)
+  const adminDigits = adminWaList.map(wa => wa.replace(/\D/g, ''));
+  
+  try {
+    // Query users table to find client_ids for admin WhatsApp numbers
+    const { rows } = await queryFn(
+      `SELECT DISTINCT client_id 
+       FROM "user" 
+       WHERE whatsapp = ANY($1::text[]) 
+         AND client_id IS NOT NULL 
+         AND client_id <> ''`,
+      [adminDigits]
+    );
+    
+    rows.forEach(row => {
+      if (row.client_id) {
+        clientIds.add(row.client_id);
+      }
+    });
+  } catch (error) {
+    console.error('[getAdminClientIds] Error fetching admin client IDs:', error);
+  }
+  
+  return Array.from(clientIds);
+}
+
+/**
+ * Check if a user (by WhatsApp number) has the same client_id (LID) as any admin user
+ */
+export async function hasSameClientIdAsAdmin(waNumber, userModelOrQuery) {
+  if (!waNumber) return false;
+  
+  // Import query function if we need it
+  let queryFn = userModelOrQuery;
+  if (!queryFn || typeof queryFn !== 'function') {
+    const { query: dbQuery } = await import('../repository/db.js');
+    queryFn = dbQuery;
+  }
+  
+  // Normalize the WhatsApp number
+  const normalized = String(waNumber).replace(/\D/g, '');
+  
+  try {
+    // Get admin client IDs
+    const adminClientIds = await getAdminClientIds(queryFn);
+    if (!adminClientIds.length) return false;
+    
+    // Check if user has one of the admin client IDs
+    const { rows } = await queryFn(
+      `SELECT 1 
+       FROM "user" 
+       WHERE whatsapp = $1 
+         AND client_id = ANY($2::text[])
+       LIMIT 1`,
+      [normalized, adminClientIds]
+    );
+    
+    return rows.length > 0;
+  } catch (error) {
+    console.error('[hasSameClientIdAsAdmin] Error checking user client ID:', error);
+    return false;
+  }
+}
+
 // Konversi nomor ke WhatsAppID (xxxx@c.us)
 export function formatToWhatsAppId(nohp) {
   const number = extractPhoneDigits(nohp);

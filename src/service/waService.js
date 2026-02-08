@@ -113,6 +113,7 @@ import {
   isUnsupportedVersionError,
   sendWAReport,
   sendWithClientFallback,
+  hasSameClientIdAsAdmin,
 } from "../utils/waHelper.js";
 import {
   IG_PROFILE_REGEX,
@@ -2357,17 +2358,66 @@ export function createHandleMessage(waClient, options = {}) {
       });
       return;
     }
+    
     const waId =
       userWaNum.startsWith("62") ? userWaNum : "62" + userWaNum.replace(/^0/, "");
     const operator = await findByOperator(waId);
     const superAdmin = operator ? null : await findBySuperAdmin(waId);
-    if (!operator && !superAdmin) {
+    
+    // Check if user has same client_id as any admin (LID check)
+    const hasSameLidAsAdmin = !operator && !superAdmin 
+      ? await hasSameClientIdAsAdmin(waId, pool.query)
+      : false;
+    
+    if (!operator && !superAdmin && !hasSameLidAsAdmin) {
       await waClient.sendMessage(
         chatId,
-        "❌ Menu ini hanya dapat diakses oleh operator yang terdaftar."
+        "❌ Menu ini hanya dapat diakses oleh operator yang terdaftar atau pengguna dengan LID yang sama dengan admin."
       );
       return;
     }
+    
+    // If user has same LID as admin, show ORG client selection
+    if (hasSameLidAsAdmin && !operator && !superAdmin) {
+      const orgClients = await clientService.findAllClientsByType("org");
+      const availableClients = (orgClients || [])
+        .filter((client) => client?.client_id && client?.client_status)
+        .map((client) => ({
+          client_id: String(client.client_id).toUpperCase(),
+          nama: client.nama || client.client_id,
+        }));
+      
+      if (availableClients.length === 0) {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Tidak ada client bertipe ORG yang aktif untuk menu operator."
+        );
+        return;
+      }
+      
+      setSession(chatId, {
+        menu: "oprrequest",
+        step: "choose_client",
+        opr_clients: availableClients,
+      });
+      
+      await runMenuHandler({
+        handlers: oprRequestHandlers,
+        menuName: "oprrequest",
+        session: getSession(chatId),
+        chatId,
+        text: "",
+        waClient,
+        clientLabel,
+        args: [pool, userModel],
+        invalidStepMessage:
+          "⚠️ Sesi menu operator tidak dikenali. Ketik *oprrequest* ulang atau *batal*.",
+        failureMessage:
+          "❌ Terjadi kesalahan pada menu operator. Ketik *oprrequest* ulang untuk memulai kembali.",
+      });
+      return;
+    }
+    
     setSession(chatId, {
       menu: "oprrequest",
       step: "main",
@@ -2446,11 +2496,54 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       superAdmin = await findBySuperAdmin(waId);
     }
     
-    if (!operator && !superAdmin) {
+    // Check if user has same client_id as any admin (LID check)
+    const hasSameLidAsAdmin = !operator && !superAdmin 
+      ? await hasSameClientIdAsAdmin(waId, pool.query)
+      : false;
+    
+    if (!operator && !superAdmin && !hasSameLidAsAdmin) {
       await waClient.sendMessage(
         chatId,
-        "❌ Menu ini hanya dapat diakses oleh administrator WhatsApp atau operator/super admin client Direktorat."
+        "❌ Menu ini hanya dapat diakses oleh administrator WhatsApp, operator/super admin client Direktorat, atau pengguna dengan LID yang sama dengan admin."
       );
+      return;
+    }
+
+    // If user has same LID as admin, show DIREKTORAT client selection
+    if (hasSameLidAsAdmin && !operator && !superAdmin) {
+      const directorateClients =
+        await clientService.findAllActiveDirektoratClients();
+      const activeDirectorateClients = (directorateClients || []).map((client) => ({
+        client_id: (client.client_id || "").toUpperCase(),
+        nama: client.nama || client.client_id || "",
+      }));
+
+      if (!activeDirectorateClients.length) {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
+        );
+        return;
+      }
+
+      setSession(chatId, {
+        menu: "dirrequest",
+        step: "choose_client",
+        dir_clients: activeDirectorateClients,
+      });
+      await runMenuHandler({
+        handlers: dirRequestHandlers,
+        menuName: "dirrequest",
+        session: getSession(chatId),
+        chatId,
+        text: "",
+        waClient,
+        clientLabel,
+        invalidStepMessage:
+          "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
+        failureMessage:
+          "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
+      });
       return;
     }
 
