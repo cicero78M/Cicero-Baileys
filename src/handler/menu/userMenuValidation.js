@@ -61,6 +61,8 @@ export function validateNRP(input) {
  * @param {string} fieldName - Field name for error messages
  * @param {string} value - User input
  * @returns {{valid: boolean, value: string, error: string}}
+ * @note Currently converts to UPPERCASE for database convention.
+ *       If adding fields requiring different casing, make this parameter-based.
  */
 export function validateTextField(fieldName, value) {
   const trimmed = value.trim();

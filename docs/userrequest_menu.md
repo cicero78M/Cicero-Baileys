@@ -107,13 +107,15 @@ Display formatting utilities:
 | Field | Min Length | Max Length | Format | Additional Validation |
 |-------|-----------|-----------|--------|---------------------|
 | NRP/NIP | 6 digits | 18 digits | Numbers only | Must exist in database |
-| Nama | 2 chars | 100 chars | Uppercase | - |
+| Nama | 2 chars | 100 chars | Uppercase (auto-converted) | - |
 | Pangkat | - | - | From predefined list | Case-insensitive match |
 | Satfung | - | - | From predefined list | Case-insensitive match |
-| Jabatan | 2 chars | 100 chars | Uppercase | - |
+| Jabatan | 2 chars | 100 chars | Uppercase (auto-converted) | - |
 | Instagram | 1 char | 30 chars | Lowercase alphanumeric | No reserved usernames, no duplicates |
 | TikTok | 1 char | 30 chars | Lowercase alphanumeric | No duplicates |
-| Desa Binaan | 2 chars | 100 chars | Uppercase | Only for Ditbinmas users |
+| Desa Binaan | 2 chars | 100 chars | Uppercase (auto-converted) | Only for Ditbinmas users |
+
+**Note**: Text fields (Nama, Jabatan, Desa) are automatically converted to uppercase to match database conventions. If future fields require different casing, the `validateTextField()` function should be extended with a casing parameter.
 
 ## Error Handling
 
