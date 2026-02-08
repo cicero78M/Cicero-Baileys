@@ -2671,6 +2671,7 @@ export const dirRequestHandlers = {
 
   async choose_client(session, chatId, text, waClient) {
     // If selected_client_id is already set (operator/super admin direct access)
+    // and no dir_clients list is provided, proceed directly to main menu
     if (session.selected_client_id && (!session.dir_clients || session.dir_clients.length === 0)) {
       const clientId = session.selected_client_id.toUpperCase();
       session.selectedClientId = clientId;
@@ -2679,7 +2680,9 @@ export const dirRequestHandlers = {
       try {
         const client = await findClientById(clientId);
         session.clientName = client?.nama || clientId;
-      } catch {
+      } catch (error) {
+        // Log error but continue with client ID as fallback name
+        console.error(`Failed to fetch client details for ${clientId}:`, error.message);
         session.clientName = clientId;
       }
       session.clientNameId = clientId;

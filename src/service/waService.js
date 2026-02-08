@@ -2441,7 +2441,10 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     const waId =
       userWaNum.startsWith("62") ? userWaNum : "62" + userWaNum.replace(/^0/, "");
     const operator = await findByOperator(waId);
-    const superAdmin = operator ? null : await findBySuperAdmin(waId);
+    let superAdmin = null;
+    if (!operator) {
+      superAdmin = await findBySuperAdmin(waId);
+    }
     
     if (!operator && !superAdmin) {
       await waClient.sendMessage(
