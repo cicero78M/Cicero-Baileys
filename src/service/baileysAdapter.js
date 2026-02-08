@@ -322,6 +322,7 @@ export async function createBaileysClient(clientId = 'wa-admin') {
         // Return empty message for historical messages
         return { conversation: '' };
       },
+      shouldSyncHistoryMessage: () => true, // Sync all history messages by default
     });
 
     registerEventListeners();
