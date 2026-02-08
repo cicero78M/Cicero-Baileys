@@ -322,3 +322,29 @@ test('baileys adapter identifies group messages', async () => {
     })
   );
 });
+
+test('baileys adapter supports listenerCount method', async () => {
+  const client = await createBaileysClient();
+  
+  // Check that listenerCount method exists
+  expect(typeof client.listenerCount).toBe('function');
+  
+  // Test with no listeners
+  const initialCount = client.listenerCount('message');
+  expect(initialCount).toBeGreaterThanOrEqual(0);
+  
+  // Add a listener
+  const handler = jest.fn();
+  client.on('message', handler);
+  
+  // Count should increase
+  const newCount = client.listenerCount('message');
+  expect(newCount).toBe(initialCount + 1);
+  
+  // Remove the listener
+  client.off('message', handler);
+  
+  // Count should decrease
+  const finalCount = client.listenerCount('message');
+  expect(finalCount).toBe(initialCount);
+});
