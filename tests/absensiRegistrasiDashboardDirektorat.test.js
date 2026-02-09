@@ -39,8 +39,8 @@ test('generates directorate report with sequential operator counts', async () =>
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
-    expect.stringContaining('LOWER(r.role_name) = $1'),
-    ['dita', 'DITA']
+    expect.stringContaining('JOIN login_log ll'),
+    ['dita', 'DITA', expect.any(Date)]
   );
   expect(msg).toMatch(/DIT A : 3 Operator/);
   expect(msg).toMatch(/Sudah : 1 Polres\n- POLRES A : 1 Operator/);
