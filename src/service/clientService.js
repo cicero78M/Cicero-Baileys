@@ -17,6 +17,9 @@ export const findAllActiveClients = async () => await clientModel.findAllActive(
 export const findAllActiveDirektoratClients = async () =>
   await clientModel.findAllActiveDirektorat();
 
+export const findAllActiveOrgClients = async () =>
+  await clientModel.findAllActiveOrgClients();
+
 export const findAllClientsByType = async (clientType) =>
   await clientModel.findAllByType(clientType);
 
