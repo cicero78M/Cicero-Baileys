@@ -24,7 +24,7 @@ import {
   absensiKomentarDitbinmasSimple as absensiKomentarDitbinmasSimpleReport,
 } from "../fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { absensiRegistrasiDashboardDirektorat } from "../fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js";
-import { findClientById } from "../../service/clientService.js";
+import { findClientById, findAllActiveOrgClients } from "../../service/clientService.js";
 import { getGreeting, sortDivisionKeys, formatNama, filterAttendanceUsers } from "../../utils/utilsHelper.js";
 import { sendWAFile, safeSendMessage, sendWithClientFallback } from "../../utils/waHelper.js";
 import { writeFile, mkdir, readFile, unlink, stat } from "fs/promises";
@@ -401,6 +401,10 @@ async function formatRekapUserData(clientId, roleFlag = null) {
     const polresIdSet = new Set(polresIds.map((id) => id.toLowerCase()));
     const clientIdLower = clientId.toLowerCase();
 
+    // Fetch all active ORG clients
+    const allOrgClients = await findAllActiveOrgClients();
+    const allOrgClientIds = allOrgClients.map((c) => c.client_id.toLowerCase());
+
     const seen = new Set();
     const allIds = [];
     const addId = (id) => {
@@ -413,6 +417,7 @@ async function formatRekapUserData(clientId, roleFlag = null) {
 
     addId(clientIdLower);
     polresIds.forEach((id) => addId(id));
+    allOrgClientIds.forEach((id) => addId(id));
     Object.keys(groups).forEach((id) => addId(id));
 
     const entries = await Promise.all(
@@ -431,7 +436,7 @@ async function formatRekapUserData(clientId, roleFlag = null) {
         return entry.cid === clientIdLower;
       }
       if (entry.type === "org") {
-        return polresIdSet.has(entry.cid);
+        return true; // Include all ORG type clients
       }
       return false;
     });
