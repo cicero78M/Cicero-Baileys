@@ -15,7 +15,9 @@ describe('Baileys User Request Linking', () => {
       expect(normalized).toBe('628123456789');
     });
 
-    it('should handle phone numbers without country code', () => {
+    // Note: This normalization is Indonesia-specific (0 → 62 country code)
+    // The system is designed for Indonesian phone numbers
+    it('should handle Indonesian phone numbers without country code', () => {
       const chatId = '08123456789@s.whatsapp.net';
       const normalized = normalizeWhatsappNumber(chatId);
       expect(normalized).toBe('628123456789');
@@ -28,6 +30,7 @@ describe('Baileys User Request Linking', () => {
     });
 
     it('should handle phone with leading zero', () => {
+      // Indonesian phone numbers starting with 0 are converted to 62 prefix
       const chatId = '08123456789';
       const normalized = normalizeWhatsappNumber(chatId);
       expect(normalized).toBe('628123456789');

@@ -6,16 +6,25 @@ import { query } from '../src/repository/db.js';
 async function checkWhatsAppFormats() {
   console.log('Checking WhatsApp number formats in database...\n');
   
+  // Get limit from environment or use default
+  const limit = process.env.CHECK_LIMIT ? parseInt(process.env.CHECK_LIMIT, 10) : 0;
+  const limitClause = limit > 0 ? `LIMIT ${limit}` : '';
+  
   try {
     // Get all users with WhatsApp numbers
     const { rows: allUsers } = await query(
-      'SELECT user_id, nama, whatsapp FROM "user" WHERE whatsapp IS NOT NULL AND whatsapp != \'\' LIMIT 20'
+      `SELECT user_id, nama, whatsapp FROM "user" WHERE whatsapp IS NOT NULL AND whatsapp != '' ${limitClause}`
     );
     
-    console.log(`Found ${allUsers.length} users with WhatsApp numbers (showing first 20):\n`);
+    console.log(`Found ${allUsers.length} users with WhatsApp numbers${limit > 0 ? ` (limited to ${limit})` : ''}:\n`);
     
     let hasOldFormat = false;
     let hasSuffix = false;
+    
+    // Calculate dynamic column widths
+    const maxUserIdLen = Math.max(15, ...allUsers.map(u => (u.user_id || '').length));
+    const maxNamaLen = Math.max(20, ...allUsers.map(u => (u.nama || '').substring(0, 30).length));
+    const maxWaLen = Math.max(30, ...allUsers.map(u => (u.whatsapp || '').length));
     
     for (const user of allUsers) {
       const wa = user.whatsapp;
@@ -35,7 +44,7 @@ async function checkWhatsAppFormats() {
         status = '⚠️ NO 62 PREFIX';
       }
       
-      console.log(`${user.user_id.padEnd(15)} | ${(user.nama || '').substring(0, 20).padEnd(20)} | ${wa.padEnd(30)} | ${status}`);
+      console.log(`${user.user_id.padEnd(maxUserIdLen)} | ${(user.nama || '').substring(0, 30).padEnd(maxNamaLen)} | ${wa.padEnd(maxWaLen)} | ${status}`);
     }
     
     console.log('\n=== Summary ===');
