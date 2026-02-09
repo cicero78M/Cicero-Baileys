@@ -7,6 +7,7 @@ import {
   sortDivisionKeys,
   formatNama,
   groupUsersByDivisionStatus,
+  filterAttendanceUsers,
 } from "../../../utils/utilsHelper.js";
 import { findClientById } from "../../../service/clientService.js";
 import {
@@ -133,8 +134,10 @@ export async function absensiLikes(client_id, opts = {}) {
     const totals = { total: 0, sudah: 0, kurang: 0, belum: 0, noUsername: 0 };
     for (let i = 0; i < polresIds.length; i++) {
       const cid = polresIds[i];
-      const users = usersByClient[cid] || [];
-      const { nama: clientName } = await getClientInfo(cid);
+      const allUsers = usersByClient[cid] || [];
+      const { nama: clientName, clientType: cidType } = await getClientInfo(cid);
+      // Filter out sat intelkam users for direktorat clients
+      const users = filterAttendanceUsers(allUsers, cidType);
       const sudah = [];
       const kurang = [];
       const belum = [];
@@ -207,7 +210,9 @@ export async function absensiLikes(client_id, opts = {}) {
     return msg.trim();
   }
 
-  const users = await getUsersByClient(clientFilter || client_id, roleFlag);
+  const allUsers = await getUsersByClient(clientFilter || client_id, roleFlag);
+  // Filter out sat intelkam users for direktorat clients
+  const users = filterAttendanceUsers(allUsers, clientType);
   const targetClient = clientFilter || client_id;
   let shortcodes;
   try {

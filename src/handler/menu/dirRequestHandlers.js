@@ -280,6 +280,33 @@ const SATBINMAS_OFFICIAL_TIKTOK_RECAP_MENU_TEXT = appendSubmenuBackInstruction(
     "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
 );
 
+const REKAP_PERSONIL_CATEGORY_MAP = {
+  "1": {
+    category: "all",
+    description: "Semua (All personnel data)",
+  },
+  "2": {
+    category: "complete",
+    description: "Lengkap (Both Instagram and TikTok filled)",
+  },
+  "3": {
+    category: "incomplete",
+    description: "Kurang (Missing either Instagram or TikTok)",
+  },
+  "4": {
+    category: "not_yet",
+    description: "Belum (Missing both Instagram and TikTok)",
+  },
+};
+
+const REKAP_PERSONIL_MENU_TEXT = appendSubmenuBackInstruction(
+  "Silakan pilih kategori rekap data personil:\n" +
+    Object.entries(REKAP_PERSONIL_CATEGORY_MAP)
+      .map(([key, option]) => `${DIGIT_EMOJI[key] || key} ${option.description}`)
+      .join("\n") +
+    "\n\nBalas angka pilihan atau ketik *batal* untuk kembali."
+);
+
 const SATBINMAS_OFFICIAL_METADATA_PROMPT = (clientId) =>
   "🔎 *Monitoring Satbinmas Official*\n" +
   "Masukkan username Instagram Satbinmas Official yang ingin dicek. " +
@@ -768,6 +795,153 @@ async function absensiKomentarDitbinmasSimple(clientId) {
 async function absensiKomentarDitbinmas(clientId) {
   return await absensiKomentarDitbinmasReport(clientId);
 }
+
+/**
+ * Filter to exclude users with direktorat client_type and satfung "sat intelkam"
+ * from attendance reports
+ */
+function filterOutSatIntelkam(users, clientType) {
+  return users.filter((u) => {
+    // Only filter if client is direktorat type
+    if (clientType !== "direktorat") {
+      return true;
+    }
+    
+    // Filter out users with satfung = "sat intelkam" (case insensitive)
+    const satfung = (u.divisi || "").toLowerCase().trim();
+    return satfung !== "sat intelkam" && satfung !== "satintelkam";
+  });
+}
+
+/**
+ * Format rekap data personil based on category
+ * Categories: all, complete, incomplete, not_yet
+ */
+async function formatRekapDataPersonil(clientId, category = "all") {
+  const targetClientId = String(clientId || DITBINMAS_CLIENT_ID).toUpperCase();
+  const [client, allUsers] = await Promise.all([
+    findClientById(targetClientId),
+    getUsersSocialByClient(targetClientId, targetClientId.toLowerCase()),
+  ]);
+
+  const clientName = client?.nama || targetClientId;
+  const clientType = client?.client_type?.toLowerCase();
+
+  if (clientType && clientType !== "direktorat") {
+    return (
+      "❌ Rekap data personil hanya tersedia untuk client bertipe " +
+      `Direktorat. (${clientName})`
+    );
+  }
+
+  // Filter out sat intelkam users from attendance
+  const users = filterOutSatIntelkam(allUsers, clientType);
+
+  const salam = getGreeting();
+  const now = new Date();
+  const hari = now.toLocaleDateString("id-ID", { weekday: "long" });
+  const tanggal = now.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const jam = now.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  // Categorize users
+  const complete = {};
+  const incomplete = {};
+  const notYet = {};
+  const all = {};
+
+  users.forEach((u) => {
+    const div = u.divisi || "-";
+    const hasInsta = !!u.insta;
+    const hasTiktok = !!u.tiktok;
+
+    // All category
+    if (!all[div]) all[div] = [];
+    all[div].push(u);
+
+    // Complete category (both filled)
+    if (hasInsta && hasTiktok) {
+      if (!complete[div]) complete[div] = [];
+      complete[div].push(u);
+    }
+    // Not yet category (both empty)
+    else if (!hasInsta && !hasTiktok) {
+      if (!notYet[div]) notYet[div] = [];
+      const missing = "Instagram dan TikTok kosong";
+      notYet[div].push({ ...u, missing });
+    }
+    // Incomplete category (one filled, one empty)
+    else {
+      if (!incomplete[div]) incomplete[div] = [];
+      const missing = [];
+      if (!hasInsta) missing.push("Instagram kosong");
+      if (!hasTiktok) missing.push("TikTok kosong");
+      incomplete[div].push({ ...u, missing: missing.join(", ") });
+    }
+  });
+
+  let categoryData;
+  let categoryLabel;
+  let showMissing = false;
+
+  switch (category) {
+    case "complete":
+      categoryData = complete;
+      categoryLabel = "LENGKAP (Sudah mengisi Instagram dan TikTok)";
+      break;
+    case "incomplete":
+      categoryData = incomplete;
+      categoryLabel = "KURANG (Belum lengkap, ada yang kosong)";
+      showMissing = true;
+      break;
+    case "not_yet":
+      categoryData = notYet;
+      categoryLabel = "BELUM (Belum mengisi Instagram dan TikTok)";
+      showMissing = true;
+      break;
+    case "all":
+    default:
+      categoryData = all;
+      categoryLabel = "SEMUA";
+      break;
+  }
+
+  const lines = sortDivisionKeys(Object.keys(categoryData)).map((div) => {
+    const userList = categoryData[div]
+      .sort(
+        (a, b) =>
+          rankIdx(a.title) - rankIdx(b.title) ||
+          formatNama(a).localeCompare(formatNama(b))
+      )
+      .map((u) => {
+        const name = formatNama(u);
+        if (showMissing && u.missing) {
+          return `${name}, ${u.missing}`;
+        }
+        return name;
+      })
+      .join("\n\n");
+    return `*${div.toUpperCase()}* (${categoryData[div].length})\n\n${userList}`;
+  });
+
+  if (!lines.length) {
+    return `${salam},\n\nTidak ada data personil kategori ${categoryLabel} untuk ${clientName.toUpperCase()}.`;
+  }
+
+  const body = lines.join("\n\n");
+  const header =
+    `${salam},\n\n` +
+    `Mohon ijin Komandan, melaporkan personil ${clientName.toUpperCase()} kategori *${categoryLabel}* pada hari ${hari}, ${tanggal}, pukul ${jam} WIB, sebagai berikut:\n\n`;
+
+  return (header + body).trim();
+}
+
 async function formatRekapBelumLengkapDirektorat(clientId) {
   const targetClientId = String(clientId || DITBINMAS_CLIENT_ID).toUpperCase();
   const [client, users] = await Promise.all([
@@ -1677,9 +1851,6 @@ async function performAction(
       msg = await formatExecutiveSummary(clientId, roleFlag);
       break;
     }
-    case "3":
-      msg = await formatRekapBelumLengkapDirektorat(clientId);
-      break;
     case "4": {
       try {
         const { filePath } = await saveSatkerUpdateMatrixExcel({
@@ -2612,7 +2783,7 @@ export const dirRequestHandlers = {
         "📊 *Rekap Data*\n" +
         "1️⃣ Rekap Kelengkapan data Personil Satker.\n" +
         "2️⃣ Ringkasan pengisian data personel\n" +
-        "3️⃣ Rekap data belum lengkap\n" +
+        "3️⃣ Rekap data personil\n" +
         "4️⃣ Rekap Matriks Update Satker\n\n" +
         "📅 *Absensi*\n" +
         "5️⃣ Absensi like Direktorat/Bidang\n" +
@@ -2833,6 +3004,12 @@ export const dirRequestHandlers = {
     }
     const taskClientId = session.dir_client_id || userClientId;
 
+    if (choice === "3") {
+      session.step = "choose_rekap_personil_category";
+      await waClient.sendMessage(chatId, REKAP_PERSONIL_MENU_TEXT);
+      return;
+    }
+
     if (choice === "22") {
       session.step = "choose_engagement_recap_period";
       await waClient.sendMessage(chatId, ENGAGEMENT_RECAP_MENU_TEXT);
@@ -3012,6 +3189,61 @@ export const dirRequestHandlers = {
           console.error("Gagal menghapus file sementara:", err);
         }
       }
+    }
+
+    session.step = "main";
+    await dirRequestHandlers.main(session, chatId, "", waClient);
+  },
+
+  async choose_rekap_personil_category(session, chatId, text, waClient) {
+    const input = (text || "").trim();
+    if (!input) {
+      await waClient.sendMessage(chatId, REKAP_PERSONIL_MENU_TEXT);
+      return;
+    }
+
+    if (input.toLowerCase() === "batal") {
+      await waClient.sendMessage(chatId, "✅ Menu rekap data personil ditutup.");
+      session.step = "main";
+      await dirRequestHandlers.main(session, chatId, "", waClient);
+      return;
+    }
+
+    const option = REKAP_PERSONIL_CATEGORY_MAP[input];
+    if (!option) {
+      await waClient.sendMessage(
+        chatId,
+        "Pilihan tidak valid. Balas angka 1 sampai 4 atau ketik *batal*."
+      );
+      await waClient.sendMessage(chatId, REKAP_PERSONIL_MENU_TEXT);
+      return;
+    }
+
+    const targetClientId = session.dir_client_id || session.selectedClientId || DITBINMAS_CLIENT_ID;
+    
+    try {
+      const msg = await formatRekapDataPersonil(targetClientId, option.category);
+      if (msg) {
+        await waClient.sendMessage(chatId, msg);
+      } else {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Tidak ada data untuk kategori yang dipilih."
+        );
+      }
+    } catch (error) {
+      console.error("Gagal membuat rekap data personil:", error);
+      let errorMsg;
+      if (
+        error?.message &&
+        (error.message.includes("direktorat") ||
+          error.message.includes("Client tidak ditemukan"))
+      ) {
+        errorMsg = error.message;
+      } else {
+        errorMsg = `❌ Gagal membuat rekap data personil kategori ${option.description}.`;
+      }
+      await waClient.sendMessage(chatId, errorMsg);
     }
 
     session.step = "main";
@@ -3753,6 +3985,8 @@ export {
   absensiKomentarTiktok,
   formatExecutiveSummary,
   formatRekapBelumLengkapDirektorat,
+  formatRekapDataPersonil,
+  filterOutSatIntelkam,
   formatRekapAllSosmed,
 };
 
