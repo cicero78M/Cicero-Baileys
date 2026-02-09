@@ -247,6 +247,7 @@ jest.unstable_mockModule('../src/utils/utilsHelper.js', () => ({
   sortDivisionKeys: (arr) => arr.sort(),
   formatNama: (u) => `${u.title || ''} ${u.nama || ''}`.trim(),
   formatUserData: jest.fn(),
+  filterAttendanceUsers: (users) => users,
 }));
 
 let dirRequestHandlers;
@@ -2491,28 +2492,73 @@ test('choose_menu option 21 sends combined sosmed recap and files', async () => 
   expect(mockUnlink).toHaveBeenCalledWith('/tmp/ig.xlsx');
   expect(mockUnlink).toHaveBeenCalledWith('/tmp/tt.xlsx');
 });
-test('choose_menu option 3 reports ditbinmas incomplete users by division', async () => {
-  mockGetUsersSocialByClient.mockResolvedValue([
-    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'AKP', nama: 'Budi', insta: null, tiktok: 'x' },
-    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'IPTU', nama: 'Adi', insta: 'y', tiktok: null },
-    { client_id: 'DITBINMAS', divisi: 'Div B', title: 'KOMPOL', nama: 'Cici', insta: null, tiktok: null },
-    { client_id: 'POLRES_A', divisi: 'Div B', title: 'AKP', nama: 'Edi', insta: null, tiktok: null },
-  ]);
+test('choose_menu option 3 opens rekap personil category submenu', async () => {
   const session = { selectedClientId: 'ditbinmas', clientName: 'DIT BINMAS' };
   const chatId = '444';
   const waClient = { sendMessage: jest.fn() };
 
   await dirRequestHandlers.choose_menu(session, chatId, '3', waClient);
 
+  expect(session.step).toBe('choose_rekap_personil_category');
+  const msg = waClient.sendMessage.mock.calls[0][1];
+  expect(msg).toContain('Silakan pilih kategori rekap data personil');
+  expect(msg).toContain('Semua');
+  expect(msg).toContain('Lengkap');
+  expect(msg).toContain('Kurang');
+  expect(msg).toContain('Belum');
+});
+
+test('choose_rekap_personil_category option 3 (incomplete) shows users with social media info', async () => {
+  mockGetUsersSocialByClient.mockResolvedValue([
+    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'AKP', nama: 'Budi', insta: null, tiktok: 'buditt' },
+    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'IPTU', nama: 'Adi', insta: 'adiig', tiktok: null },
+    { client_id: 'DITBINMAS', divisi: 'Div B', title: 'KOMPOL', nama: 'Cici', insta: null, tiktok: null },
+    { client_id: 'DITBINMAS', divisi: 'Div B', title: 'AKBP', nama: 'Dedi', insta: 'dediig', tiktok: 'deditt' },
+    { client_id: 'DITBINMAS', divisi: 'Div A', title: 'IPDA', nama: 'Feri', insta: 'feriig', tiktok: null },
+  ]);
+  const session = { 
+    selectedClientId: 'ditbinmas', 
+    dir_client_id: 'DITBINMAS',
+    clientName: 'DIT BINMAS',
+    step: 'choose_rekap_personil_category'
+  };
+  const chatId = '444';
+  const waClient = { sendMessage: jest.fn() };
+
+  await dirRequestHandlers.choose_rekap_personil_category(session, chatId, '3', waClient);
+
   expect(mockGetUsersSocialByClient).toHaveBeenCalledWith('DITBINMAS', 'ditbinmas');
   const msg = waClient.sendMessage.mock.calls[0][1];
-  expect(msg).toMatch(/\*DIV A\* \(2\)/);
-  expect(msg).toMatch(/AKP Budi, Instagram kosong/);
-  expect(msg).toMatch(/IPTU Adi, TikTok kosong/);
+  
+  // Check header has summary statistics
+  expect(msg).toMatch(/Total User: 5/);
+  expect(msg).toMatch(/Lengkap: 1/);
+  expect(msg).toMatch(/Kurang: 3/);
+  expect(msg).toMatch(/Belum: 1/);
+  
+  // Check division counts (only incomplete users shown)
+  expect(msg).toMatch(/\*DIV A\* \(3\)/);
+  // DIV B has 0 incomplete users, so it shouldn't appear in output
+  expect(msg).not.toMatch(/DIV B/);
+  
+  // Check users with social media info
+  expect(msg).toMatch(/AKP Budi \(TikTok: @buditt\), Instagram kosong/);
+  expect(msg).toMatch(/IPTU Adi \(IG: @adiig\), TikTok kosong/);
+  expect(msg).toMatch(/IPDA Feri \(IG: @feriig\), TikTok kosong/);
+  
+  // Check that complete user (Dedi) is NOT shown in incomplete category
+  expect(msg).not.toMatch(/Dedi/);
+  
+  // Check that Belum user (Cici) is NOT shown in incomplete category
+  expect(msg).not.toMatch(/Cici/);
+  
+  // Verify rank ordering (AKP before IPTU before IPDA)
   const idxBudi = msg.indexOf('AKP Budi');
   const idxAdi = msg.indexOf('IPTU Adi');
+  const idxFeri = msg.indexOf('IPDA Feri');
   expect(idxBudi).toBeLessThan(idxAdi);
-  expect(msg).toMatch(/\*DIV B\* \(1\)/);
-  expect(msg).toMatch(/KOMPOL Cici, Instagram kosong, TikTok kosong/);
-  expect(msg).not.toMatch(/Edi/);
+  expect(idxAdi).toBeLessThan(idxFeri);
+  
+  // Verify no double spacing between users in same division
+  expect(msg).not.toMatch(/AKP Budi[^\n]*\n\n.*IPTU Adi/);
 });

@@ -904,23 +904,40 @@ async function formatRekapDataPersonil(clientId, category = "all") {
       )
       .map((u) => {
         const name = formatNama(u);
+        const socialMedia = [];
+        if (u.insta) socialMedia.push(`IG: @${u.insta}`);
+        if (u.tiktok) socialMedia.push(`TikTok: @${u.tiktok}`);
+        const socialMediaInfo = socialMedia.length > 0 ? ` (${socialMedia.join(", ")})` : "";
+        
         if (showMissing && u.missing) {
-          return `${name}, ${u.missing}`;
+          return `${name}${socialMediaInfo}, ${u.missing}`;
         }
-        return name;
+        return `${name}${socialMediaInfo}`;
       })
-      .join("\n\n");
-    return `*${div.toUpperCase()}* (${categoryData[div].length})\n\n${userList}`;
+      .join("\n");
+    return `*${div.toUpperCase()}* (${categoryData[div].length})\n${userList}`;
   });
 
   if (!lines.length) {
     return `${salam},\n\nTidak ada data personil kategori ${categoryLabel} untuk ${clientName.toUpperCase()}.`;
   }
 
+  // Calculate totals for header
+  const totalUsers = users.length;
+  const totalComplete = Object.values(complete).reduce((sum, arr) => sum + arr.length, 0);
+  const totalIncomplete = Object.values(incomplete).reduce((sum, arr) => sum + arr.length, 0);
+  const totalNotYet = Object.values(notYet).reduce((sum, arr) => sum + arr.length, 0);
+
   const body = lines.join("\n\n");
   const header =
     `${salam},\n\n` +
-    `Mohon ijin Komandan, melaporkan personil ${clientName.toUpperCase()} kategori *${categoryLabel}* pada hari ${hari}, ${tanggal}, pukul ${jam} WIB, sebagai berikut:\n\n`;
+    `Mohon ijin Komandan, melaporkan personil ${clientName.toUpperCase()} kategori *${categoryLabel}* pada hari ${hari}, ${tanggal}, pukul ${jam} WIB.\n\n` +
+    `📊 *Ringkasan:*\n` +
+    `• Total User: ${totalUsers}\n` +
+    `• Lengkap: ${totalComplete}\n` +
+    `• Kurang: ${totalIncomplete}\n` +
+    `• Belum: ${totalNotYet}\n\n` +
+    `Berikut detailnya:\n\n`;
 
   return (header + body).trim();
 }
