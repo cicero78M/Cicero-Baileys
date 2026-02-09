@@ -398,7 +398,6 @@ async function formatRekapUserData(clientId, roleFlag = null) {
 
     const roleName = (filterRole || clientId).toLowerCase();
     const polresIds = (await getClientsByRole(roleName)) || [];
-    const polresIdSet = new Set(polresIds.map((id) => id.toLowerCase()));
     const clientIdLower = clientId.toLowerCase();
 
     // Fetch all active ORG clients
