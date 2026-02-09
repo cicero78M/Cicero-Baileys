@@ -1644,8 +1644,6 @@ async function handleClientRequestSessionStep({
 
 export function createHandleMessage(waClient, options = {}) {
   const { allowUserMenu = true, clientLabel = "[WA]", markSeen = true } = options;
-  const userMenuRedirectMessage =
-    "Menu pengguna hanya tersedia melalui nomor *WA-USER*. Silakan hubungi nomor tersebut dan ketik *userrequest* untuk melanjutkan.";
 
   return async function handleMessage(msg) {
     const chatId = msg.from;
@@ -2155,10 +2153,9 @@ export function createHandleMessage(waClient, options = {}) {
       if (session.warningTimeout) clearTimeout(session.warningTimeout);
       if (session.noReplyTimeout) clearTimeout(session.noReplyTimeout);
       delete userMenuContext[chatId];
-      await waClient.sendMessage(
-        chatId,
-        allowUserMenu ? "✅ Menu User ditutup. Terima kasih." : userMenuRedirectMessage
-      );
+      if (allowUserMenu) {
+        await waClient.sendMessage(chatId, "✅ Menu User ditutup. Terima kasih.");
+      }
       return;
     }
     if (session && lowerText === "batal") {
@@ -2198,7 +2195,6 @@ export function createHandleMessage(waClient, options = {}) {
       if (/^2$/.test(text.trim())) {
         delete operatorOptionSessions[chatId];
         if (!allowUserMenu) {
-          await waClient.sendMessage(chatId, userMenuRedirectMessage);
           return;
         }
         const pengirim = chatId.replace(/[^0-9]/g, "");
@@ -2265,7 +2261,6 @@ export function createHandleMessage(waClient, options = {}) {
       if (/^3$/.test(text.trim())) {
         delete adminOptionSessions[chatId];
         if (!allowUserMenu) {
-          await waClient.sendMessage(chatId, userMenuRedirectMessage);
           return;
         }
         const pengirim = chatId.replace(/[^0-9]/g, "");
@@ -2590,7 +2585,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     if (userMenuContext[chatId]) {
       if (!allowUserMenu) {
         delete userMenuContext[chatId];
-        await waClient.sendMessage(chatId, userMenuRedirectMessage);
         return;
       }
       setMenuTimeout(chatId, waClient);
@@ -2623,7 +2617,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
     // ========== Mulai Menu Interaktif User ==========
     if (lowerText === "userrequest") {
       if (!allowUserMenu) {
-        await waClient.sendMessage(chatId, userMenuRedirectMessage);
         return;
       }
       await startUserMenuSession();
@@ -4049,7 +4042,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
       return;
     }
     if (!allowUserMenu) {
-      await safeSendMessage(waClient, chatId, userMenuRedirectMessage);
       return;
     }
     const pengirim = chatId.replace(/[^0-9]/g, "");
@@ -4092,7 +4084,6 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
   if (!userByWAExist) {
     if (!allowUserMenu) {
       delete waBindSessions[chatId];
-      await waClient.sendMessage(chatId, userMenuRedirectMessage);
       return;
     }
     if (waBindSessions[chatId]) {
