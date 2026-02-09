@@ -2819,6 +2819,208 @@ Balas *angka* (1/2) sesuai status baru, atau *batal* untuk keluar.
     session.step = "main";
     return oprRequestHandlers.main(session, chatId, "", waClient, pool, userModel);
   },
+
+  // ==== ACCOUNT LINKING FLOW ====
+  link_choose_role: async (session, chatId, text, waClient, pool, userModel) => {
+    const trimmedText = (text || "").trim();
+    
+    if (/^(batal|cancel|exit)$/i.test(trimmedText)) {
+      session.menu = null;
+      session.step = null;
+      delete session.opr_clients;
+      delete session.linking_wa_id;
+      delete session.linking_role;
+      await waClient.sendMessage(chatId, "❎ Penautan akun dibatalkan.");
+      return;
+    }
+    
+    let role = null;
+    if (trimmedText === "1") {
+      role = "operator";
+    } else if (trimmedText === "2") {
+      role = "super_admin";
+    }
+    
+    if (!role) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Pilihan tidak valid. Balas *1* untuk Operator atau *2* untuk Super Admin, atau *batal* untuk keluar."
+      );
+      return;
+    }
+    
+    session.linking_role = role;
+    session.step = "link_choose_client";
+    
+    // Show available clients
+    const clients = Array.isArray(session.opr_clients) ? session.opr_clients : [];
+    if (!clients.length) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Tidak ada client bertipe ORG yang aktif untuk penautan."
+      );
+      delete session.opr_clients;
+      delete session.linking_wa_id;
+      delete session.linking_role;
+      session.menu = null;
+      session.step = null;
+      return;
+    }
+    
+    const roleLabel = role === "operator" ? "Operator" : "Super Admin";
+    const items = clients
+      .map((client, index) => {
+        const label = client.nama ? `${client.client_id} - ${client.nama}` : client.client_id;
+        return `${index + 1}. ${label}`;
+      })
+      .join("\n");
+    
+    const msg = `🔗 *Pilih Client untuk Penautan ${roleLabel}*
+
+${items}
+
+Balas *nomor* atau *client_id* untuk melanjutkan, atau *batal* untuk keluar.`;
+    
+    await waClient.sendMessage(chatId, msg);
+  },
+
+  link_choose_client: async (session, chatId, text, waClient, pool, userModel) => {
+    const clients = Array.isArray(session.opr_clients) ? session.opr_clients : [];
+    const trimmedText = (text || "").trim();
+    
+    if (/^(batal|cancel|exit)$/i.test(trimmedText)) {
+      session.menu = null;
+      session.step = null;
+      delete session.opr_clients;
+      delete session.linking_wa_id;
+      delete session.linking_role;
+      await waClient.sendMessage(chatId, "❎ Penautan akun dibatalkan.");
+      return;
+    }
+    
+    if (!clients.length) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Tidak ada client yang dapat dipilih untuk penautan."
+      );
+      delete session.opr_clients;
+      delete session.linking_wa_id;
+      delete session.linking_role;
+      session.menu = null;
+      session.step = null;
+      return;
+    }
+    
+    let selectedClient = null;
+    if (/^\d+$/.test(trimmedText)) {
+      const index = Number.parseInt(trimmedText, 10);
+      if (index >= 1 && index <= clients.length) {
+        selectedClient = clients[index - 1];
+      }
+    }
+    
+    if (!selectedClient) {
+      selectedClient = clients.find(
+        (client) =>
+          String(client.client_id || "").toLowerCase() === trimmedText.toLowerCase()
+      );
+    }
+    
+    if (!selectedClient) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Pilihan client tidak valid. Balas nomor atau client_id yang tersedia."
+      );
+      return;
+    }
+    
+    // Perform the linking
+    const clientId = selectedClient.client_id;
+    const waId = session.linking_wa_id;
+    const role = session.linking_role;
+    
+    if (!waId || !role) {
+      await waClient.sendMessage(
+        chatId,
+        "❌ Terjadi kesalahan dalam proses penautan. Silakan coba lagi dengan mengetik *oprrequest*."
+      );
+      delete session.opr_clients;
+      delete session.linking_wa_id;
+      delete session.linking_role;
+      session.menu = null;
+      session.step = null;
+      return;
+    }
+    
+    try {
+      // Get current client data
+      const { findById, update } = await import("../../model/clientModel.js");
+      const client = await findById(clientId);
+      
+      if (!client) {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Client tidak ditemukan. Silakan coba lagi."
+        );
+        return;
+      }
+      
+      // Update client based on role
+      let updateData = {};
+      let roleLabel = "";
+      
+      if (role === "operator") {
+        updateData.client_operator = waId;
+        roleLabel = "Operator";
+      } else if (role === "super_admin") {
+        // For super admin, append to existing list if there's already a value
+        const existingSuper = client.client_super || "";
+        const superList = existingSuper
+          .split(/[,\s]+/)
+          .filter(Boolean)
+          .map(s => s.trim());
+        
+        if (!superList.includes(waId)) {
+          superList.push(waId);
+        }
+        
+        updateData.client_super = superList.join(", ");
+        roleLabel = "Super Admin";
+      }
+      
+      // Update the client
+      const updated = await update(clientId, updateData);
+      
+      if (updated) {
+        await waClient.sendMessage(
+          chatId,
+          `✅ *Penautan Berhasil!*
+
+Nomor Anda telah ditautkan sebagai *${roleLabel}* untuk client *${clientId}*.
+
+Anda sekarang dapat mengakses menu operator. Ketik *oprrequest* untuk memulai.`
+        );
+      } else {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Gagal melakukan penautan. Silakan coba lagi."
+        );
+      }
+    } catch (error) {
+      console.error("[link_choose_client] Error during linking:", error);
+      await waClient.sendMessage(
+        chatId,
+        "❌ Terjadi kesalahan saat melakukan penautan. Silakan coba lagi nanti."
+      );
+    }
+    
+    // Clean up session
+    delete session.opr_clients;
+    delete session.linking_wa_id;
+    delete session.linking_role;
+    session.menu = null;
+    session.step = null;
+  },
 };
 
 export default oprRequestHandlers;
