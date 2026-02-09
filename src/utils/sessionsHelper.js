@@ -5,7 +5,7 @@
 // =======================
 
 const SESSION_TIMEOUT = 5 * 60 * 1000; // 5 menit
-const USER_MENU_TIMEOUT = 5 * 60 * 1000; // 5 menit
+const USER_MENU_TIMEOUT = 3 * 60 * 1000; // 3 menit
 const MENU_WARNING = 1 * 60 * 1000; // 1 menit sebelum berakhir
 const MENU_TIMEOUT = 2 * 60 * 1000; // 2 menit
 const BIND_TIMEOUT = 2 * 60 * 1000; // 2 menit
@@ -47,6 +47,14 @@ export function setMenuTimeout(chatId, waClient, expectReply = false) {
     clearTimeout(ctx.noReplyTimeout);
   }
   ctx.timeout = setTimeout(() => {
+    if (waClient) {
+      waClient
+        .sendMessage(
+          chatId,
+          "⏰ *Sesi Telah Berakhir*\n\nSesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.\n\nUntuk memulai lagi, ketik *userrequest*."
+        )
+        .catch((e) => console.error(e));
+    }
     delete userMenuContext[chatId];
   }, USER_MENU_TIMEOUT);
   ctx.warningTimeout = setTimeout(() => {

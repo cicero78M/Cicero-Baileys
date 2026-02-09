@@ -2149,6 +2149,11 @@ export function createHandleMessage(waClient, options = {}) {
 
     // =========== Menu User Interaktif ===========
     if (userMenuContext[chatId] && lowerText === "batal") {
+      const session = userMenuContext[chatId];
+      // Clear all timeouts
+      if (session.timeout) clearTimeout(session.timeout);
+      if (session.warningTimeout) clearTimeout(session.warningTimeout);
+      if (session.noReplyTimeout) clearTimeout(session.noReplyTimeout);
       delete userMenuContext[chatId];
       await waClient.sendMessage(
         chatId,
