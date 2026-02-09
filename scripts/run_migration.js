@@ -40,7 +40,7 @@ function validateSQLContent(content) {
   }
   
   // Check for truncated lines (skip comment lines)
-  // Note: This is a basic check and may have false positives/negatives
+  // Note: This is a very conservative check focused on detecting obviously corrupted content
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -48,11 +48,13 @@ function validateSQLContent(content) {
     if (line.length === 0 || line.startsWith('--')) {
       continue;
     }
-    // Check if line looks suspiciously incomplete (ends with just a word fragment)
-    // This is intentionally conservative to avoid false positives
-    const endsWithFragment = line.length > 10 && 
+    // Only flag lines that look suspiciously incomplete
+    // Must end with a single word fragment (no SQL keywords, no punctuation)
+    const lastPart = line.split(/\s+/).pop();
+    const endsWithFragment = line.length > 20 && 
                              !line.match(/[;,)(]$/) && 
-                             line.split(/\s+/).pop().match(/^[a-z]+$/i);
+                             !lastPart.match(/^(NULL|AND|OR|NOT|IS|AS|ON|IN|BY|TO|FROM|WHERE|SET)$/i) &&
+                             lastPart.match(/^[a-z]{3,}$/i);
     if (endsWithFragment) {
       issues.push(`Line ${i + 1} may be truncated: "${line.substring(0, 50)}..."`);
     }
