@@ -40,6 +40,7 @@ function validateSQLContent(content) {
   }
   
   // Check for truncated lines (skip comment lines)
+  // Note: This is a basic check and may have false positives/negatives
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -47,8 +48,12 @@ function validateSQLContent(content) {
     if (line.length === 0 || line.startsWith('--')) {
       continue;
     }
-    // Check if line looks suspiciously incomplete (ends abruptly without proper SQL termination)
-    if (line.length > 10 && !line.match(/[;,)(]$/) && line.match(/^[a-z]+$/i)) {
+    // Check if line looks suspiciously incomplete (ends with just a word fragment)
+    // This is intentionally conservative to avoid false positives
+    const endsWithFragment = line.length > 10 && 
+                             !line.match(/[;,)(]$/) && 
+                             line.split(/\s+/).pop().match(/^[a-z]+$/i);
+    if (endsWithFragment) {
       issues.push(`Line ${i + 1} may be truncated: "${line.substring(0, 50)}..."`);
     }
   }
@@ -136,7 +141,8 @@ async function runMigration(migrationPath) {
     try {
       await client.end();
     } catch {
-      // Ignore connection close errors
+      // Ignore connection close errors - client may already be disconnected
+      // This is safe because we're already in the error handler and about to exit
     }
     
     process.exit(1);
