@@ -479,7 +479,9 @@ export async function updateUserField(user_id, field, value) {
     value = value.toUpperCase();
   }
   if (field === 'whatsapp') {
+    const originalValue = value;
     value = normalizeWhatsappField(value);
+    console.log(`[userModel] updateUserField whatsapp: user_id=${uid}, original="${originalValue}", normalized="${value}"`);
   }
   if (roleFields.includes(field)) {
     if (value) await addRole(uid, field);
@@ -620,10 +622,12 @@ export async function findUserByTiktok(tiktok) {
 
 export async function findUserByWhatsApp(wa) {
   if (!wa) return null;
+  console.log(`[userModel] findUserByWhatsApp query: wa="${wa}"`);
   const { rows } = await query(
       `SELECT u.*,\n      c.nama AS client_name,\n      bool_or(r.role_name='ditbinmas') AS ditbinmas,\n      bool_or(r.role_name='ditlantas') AS ditlantas,\n      bool_or(r.role_name='bidhumas') AS bidhumas,\n      bool_or(r.role_name='ditsamapta') AS ditsamapta,\n      bool_or(r.role_name='ditintelkam') AS ditintelkam,\n      bool_or(r.role_name='operator') AS operator\n     FROM "user" u\n     LEFT JOIN clients c ON c.client_id = u.client_id\n     LEFT JOIN user_roles ur ON u.user_id = ur.user_id\n     LEFT JOIN roles r ON ur.role_id = r.role_id\n     WHERE u.whatsapp = $1\n     GROUP BY u.user_id, c.nama`,
     [wa]
   );
+  console.log(`[userModel] findUserByWhatsApp result: ${rows.length > 0 ? `found user_id=${rows[0].user_id}` : 'NOT FOUND'}`);
   return rows[0];
 }
 
