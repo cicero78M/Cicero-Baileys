@@ -488,3 +488,26 @@ export function extractInstagramShortcode(text) {
   if (/^[A-Za-z0-9_-]+$/.test(code)) return code;
   return null;
 }
+
+/**
+ * Filter to exclude users with direktorat client_type and satfung "sat intelkam"
+ * from attendance reports. This should be applied to user arrays in attendance functions.
+ * 
+ * @param {Array} users - Array of user objects
+ * @param {string} clientType - Type of client (e.g., 'direktorat', 'org')
+ * @returns {Array} Filtered array of users
+ */
+export function filterAttendanceUsers(users, clientType) {
+  if (!Array.isArray(users)) return [];
+  
+  return users.filter((u) => {
+    // Only filter if client is direktorat type
+    if (clientType?.toLowerCase() !== "direktorat") {
+      return true;
+    }
+    
+    // Filter out users with satfung = "sat intelkam" (case insensitive)
+    const satfung = (u.divisi || "").toLowerCase().trim();
+    return satfung !== "sat intelkam" && satfung !== "satintelkam";
+  });
+}

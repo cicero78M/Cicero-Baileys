@@ -12,6 +12,7 @@ import {
   sortDivisionKeys,
   formatNama,
   groupUsersByDivisionStatus,
+  filterAttendanceUsers,
 } from "../../../utils/utilsHelper.js";
 import { sendDebug } from "../../../middleware/debugHandler.js";
 import { sortUsersByPositionRankAndName } from "../../../utils/sortingHelper.js";
@@ -121,8 +122,10 @@ export async function collectKomentarRecap(clientId, opts = {}) {
   });
   const recap = {};
   for (const cid of polresIds) {
-    const { nama: clientName } = await getClientInfo(cid);
-    const users = usersByClient[cid] || [];
+    const { nama: clientName, clientType: cidType } = await getClientInfo(cid);
+    const allUsersForClient = usersByClient[cid] || [];
+    // Filter out sat intelkam users for direktorat clients
+    const users = filterAttendanceUsers(allUsersForClient, cidType);
     const byDiv = groupByDivision(users);
     const sortedDiv = sortDivisionKeys(Object.keys(byDiv));
     const rows = [];
@@ -159,15 +162,18 @@ export async function absensiKomentar(client_id, opts = {}) {
   const clientInfo = await getClientInfo(client_id);
   const clientNama = clientInfo.nama;
   const tiktokUsername = clientInfo.tiktok;
+  const clientType = clientInfo.clientType;
   const allowedRoles = ["ditbinmas", "ditlantas", "bidhumas"];
-  let users;
+  let allUsers;
   if (roleFlag && allowedRoles.includes(roleFlag.toLowerCase())) {
-    users = (
+    allUsers = (
       await getUsersByDirektorat(roleFlag.toLowerCase())
     ).filter((u) => u.status === true);
   } else {
-    users = await getUsersByClient(clientFilter || client_id, roleFlag);
+    allUsers = await getUsersByClient(clientFilter || client_id, roleFlag);
   }
+  // Filter out sat intelkam users for direktorat clients
+  const users = filterAttendanceUsers(allUsers, clientType);
   const posts = await getPostsTodayByClient(client_id);
 
   sendDebug({
@@ -609,7 +615,7 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS") {
   const tanggal = now.toLocaleDateString("id-ID");
   const jam = now.toLocaleTimeString("id-ID", { hour12: false });
 
-  const { tiktok: mainUsername, nama: clientName } = await getClientInfo(targetClientId);
+  const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
   const clientNameUpper = String(clientName || targetClientId).toUpperCase();
   const posts = await getPostsTodayByClient(targetClientId);
   if (!posts.length)
@@ -648,9 +654,11 @@ export async function absensiKomentarDitbinmasSimple(clientId = "DITBINMAS") {
   }
 
   const allUsersRaw = await getUsersByDirektorat(roleName, targetClientId);
-  const allUsers = allUsersRaw.filter(
+  const filteredUsers = allUsersRaw.filter(
     (u) => u.status === true && (u.client_id || "").toUpperCase() === targetClientId
   );
+  // Filter out sat intelkam users for direktorat clients
+  const allUsers = filterAttendanceUsers(filteredUsers, clientType);
 
   const categorizedUsers = {
     lengkap: [],
@@ -749,7 +757,7 @@ export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
   const tanggal = now.toLocaleDateString("id-ID");
   const jam = now.toLocaleTimeString("id-ID", { hour12: false });
 
-  const { tiktok: mainUsername, nama: clientName } = await getClientInfo(targetClientId);
+  const { tiktok: mainUsername, nama: clientName, clientType } = await getClientInfo(targetClientId);
 
   const posts = await getPostsTodayByClient(targetClientId);
   if (!posts.length)
@@ -788,10 +796,12 @@ export async function absensiKomentarDitbinmasReport(clientId = "DITBINMAS") {
   }
 
   const allUsersRaw = await getUsersByDirektorat(roleName, targetClientId);
-  const allUsers = allUsersRaw.filter(
+  const filteredUsers = allUsersRaw.filter(
     (u) =>
       u.status === true && (u.client_id || "").toUpperCase() === targetClientId
   );
+  // Filter out sat intelkam users for direktorat clients
+  const allUsers = filterAttendanceUsers(filteredUsers, clientType);
 
   const usersByDiv = {};
   allUsers.forEach((u) => {
@@ -1044,7 +1054,10 @@ export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
   const perClientBelumBlocks = [];
 
   for (const cid of clientIds) {
-    const users = usersByClient[cid] || [];
+    const allUsersForClient = usersByClient[cid] || [];
+    const { nama: clientName, clientType: cidType } = await getClientInfo(cid);
+    // Filter out sat intelkam users for direktorat clients
+    const users = filterAttendanceUsers(allUsersForClient, cidType);
     const already = [];
     const partial = [];
     const none = [];
@@ -1075,8 +1088,6 @@ export async function lapharTiktokDitbinmas(clientId = "DITBINMAS") {
     totals.belum += none.length + noUname.length;
     totals.noUsername += noUname.length;
     totals.noTiktok += noTiktok;
-
-    const { nama: clientName } = await getClientInfo(cid);
 
     const sortUsers = (arr) =>
       arr.sort(
@@ -1289,11 +1300,14 @@ export async function absensiKomentarTiktokPerKonten(client_id, opts = {}) {
   const clientInfo = await getClientInfo(client_id);
   const clientNama = clientInfo.nama;
   const tiktokUsername = clientInfo.tiktok;
+  const clientType = clientInfo.clientType;
   const clientLabel =
-    clientInfo.clientType && clientInfo.clientType.toLowerCase() === "direktorat"
+    clientType && clientType.toLowerCase() === "direktorat"
       ? "Direktorat"
       : "Polres";
-  const users = await getUsersByClient(client_id);
+  const allUsers = await getUsersByClient(client_id);
+  // Filter out sat intelkam users for direktorat clients
+  const users = filterAttendanceUsers(allUsers, clientType);
   const posts = await getPostsTodayByClient(client_id);
   sendDebug({
     tag: "ABSEN TTK",
