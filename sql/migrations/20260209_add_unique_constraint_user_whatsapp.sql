@@ -6,6 +6,7 @@
 -- First, let's identify and clean up duplicate WhatsApp numbers (keep the earliest created_at)
 
 -- Step 1: Clear duplicate WhatsApp numbers (keep only the first created user with each number)
+-- Use created_at as primary sort, user_id as tie-breaker for deterministic results
 UPDATE "user" u1
 SET whatsapp = NULL, updated_at = NOW()
 WHERE u1.whatsapp IS NOT NULL 
@@ -14,7 +15,8 @@ WHERE u1.whatsapp IS NOT NULL
     SELECT 1 
     FROM "user" u2 
     WHERE u2.whatsapp = u1.whatsapp 
-      AND u2.created_at < u1.created_at
+      AND (u2.created_at < u1.created_at 
+           OR (u2.created_at = u1.created_at AND u2.user_id < u1.user_id))
   );
 
 -- Step 2: Add unique constraint on whatsapp field
