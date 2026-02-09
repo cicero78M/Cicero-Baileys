@@ -435,7 +435,7 @@ async function formatRekapUserData(clientId, roleFlag = null) {
         return entry.cid === clientIdLower;
       }
       if (entry.type === "org") {
-        return true; // Include all ORG type clients
+        return true; // Include all ORG type clients (not limited to those from getClientsByRole)
       }
       return false;
     });

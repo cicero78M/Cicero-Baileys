@@ -533,10 +533,10 @@ test('formatRekapUserData includes all ORG clients regardless of getClientsByRol
   mockGetUsersSocialByClient.mockResolvedValue([
     { client_id: 'POLRES_A', insta: 'x', tiktok: 'y' },
   ]);
-  
+
   // getClientsByRole only returns POLRES_A
   mockGetClientsByRole.mockResolvedValue(['polres_a']);
-  
+
   // But findAllActiveOrgClients returns all ORG clients including POLRES_D and POLRES_E
   mockFindAllActiveOrgClients.mockResolvedValue([
     { client_id: 'POLRES_A', client_type: 'org' },
@@ -544,7 +544,7 @@ test('formatRekapUserData includes all ORG clients regardless of getClientsByRol
     { client_id: 'POLRES_D', client_type: 'org' },
     { client_id: 'POLRES_E', client_type: 'org' },
   ]);
-  
+
   mockFindClientById.mockImplementation(async (cid) => ({
     ditbinmas: { nama: 'DIT BINMAS', client_type: 'direktorat' },
     polres_a: { nama: 'POLRES A', client_type: 'org' },
@@ -559,7 +559,7 @@ test('formatRekapUserData includes all ORG clients regardless of getClientsByRol
   expect(msg).toContain('POLRES D');
   expect(msg).toContain('POLRES E');
   expect(msg).toContain('DIT BINMAS');
-  
+
   jest.useRealTimers();
 });
 
