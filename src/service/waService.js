@@ -2370,10 +2370,41 @@ export function createHandleMessage(waClient, options = {}) {
       : false;
     
     if (!operator && !superAdmin && !hasSameLidAsAdmin) {
-      await waClient.sendMessage(
-        chatId,
-        "❌ Menu ini hanya dapat diakses oleh operator yang terdaftar atau pengguna dalam organisasi yang sama dengan admin."
-      );
+      // User not found in client table - offer linking options
+      const orgClients = await clientService.findAllClientsByType("org");
+      const availableClients = (orgClients || [])
+        .filter((client) => client?.client_id && client?.client_status)
+        .map((client) => ({
+          client_id: String(client.client_id).toUpperCase(),
+          nama: client.nama || client.client_id,
+        }));
+      
+      if (availableClients.length === 0) {
+        await waClient.sendMessage(
+          chatId,
+          "❌ Tidak ada client bertipe ORG yang aktif untuk menu operator."
+        );
+        return;
+      }
+      
+      // Start account linking flow
+      setSession(chatId, {
+        menu: "oprrequest",
+        step: "link_choose_role",
+        opr_clients: availableClients,
+        linking_wa_id: waId,
+      });
+      
+      const msg = `🔗 *Penautan Akun Operator/Super Admin*
+
+Nomor Anda belum terdaftar di sistem. Silakan pilih peran yang ingin Anda tautkan:
+
+1️⃣ Operator
+2️⃣ Super Admin
+
+Ketik *angka* untuk memilih, atau *batal* untuk keluar.`;
+      
+      await waClient.sendMessage(chatId, msg);
       return;
     }
     
