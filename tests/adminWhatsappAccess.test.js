@@ -93,17 +93,32 @@ describe('ADMIN_WHATSAPP Access Control', () => {
   });
 
   describe('dirrequest and oprrequest Menu Access', () => {
+    // Helper function to extract code sections
+    const getMenuSection = (content, menuName) => {
+      const regex = new RegExp(`if \\(text\\.toLowerCase\\(\\) === "${menuName}"\\)[\\s\\S]*?return;[\\s\\S]*?}`, 'g');
+      return content.match(regex);
+    };
+
     test('should verify dirrequest allows access from all WhatsApp numbers', async () => {
       const fs = await import('fs');
       const path = await import('path');
       const waServicePath = path.join(process.cwd(), 'src', 'service', 'waService.js');
       const content = fs.readFileSync(waServicePath, 'utf-8');
       
-      // Verify dirrequest section exists and allows access from all numbers
-      const dirRequestSection = content.match(/if \(text\.toLowerCase\(\) === "dirrequest"\)[\s\S]*?return;[\s\S]*?}/);
+      // Verify dirrequest section exists
+      const dirRequestSection = getMenuSection(content, 'dirrequest');
       expect(dirRequestSection).toBeTruthy();
-      // dirrequest should now allow access from all numbers (no isAdminWhatsApp check)
-      expect(dirRequestSection[0]).toContain('Allow access from all WhatsApp numbers');
+      expect(dirRequestSection.length).toBeGreaterThan(0);
+      
+      // Verify no authorization checks in dirrequest
+      const section = dirRequestSection[0];
+      expect(section).not.toContain('isAdminWhatsApp(chatId)');
+      expect(section).not.toContain('findByOperator');
+      expect(section).not.toContain('findBySuperAdmin');
+      expect(section).not.toContain('hasSameLidAsAdmin');
+      
+      // Verify it fetches directorate clients for all users
+      expect(section).toContain('findAllActiveDirektoratClients');
     });
 
     test('should verify oprrequest access control checks isAdminWhatsApp', async () => {
@@ -113,25 +128,9 @@ describe('ADMIN_WHATSAPP Access Control', () => {
       const content = fs.readFileSync(waServicePath, 'utf-8');
       
       // Verify oprrequest checks isAdminWhatsApp
-      const oprRequestSection = content.match(/if \(text\.toLowerCase\(\) === "oprrequest"\)[\s\S]*?return;[\s\S]*?}/);
+      const oprRequestSection = getMenuSection(content, 'oprrequest');
       expect(oprRequestSection).toBeTruthy();
       expect(oprRequestSection[0]).toContain('isAdminWhatsApp(chatId)');
-    });
-
-    test('any WhatsApp number should have access to dirrequest', async () => {
-      const fs = await import('fs');
-      const path = await import('path');
-      const waServicePath = path.join(process.cwd(), 'src', 'service', 'waService.js');
-      const content = fs.readFileSync(waServicePath, 'utf-8');
-      
-      // Verify dirrequest does not restrict by isAdminWhatsApp or operator/super admin
-      const dirRequestSection = content.match(/if \(text\.toLowerCase\(\) === "dirrequest"\)[\s\S]*?return;[\s\S]*?}/);
-      expect(dirRequestSection).toBeTruthy();
-      
-      // Should not contain operator/super admin checks
-      expect(dirRequestSection[0]).not.toContain('findByOperator');
-      expect(dirRequestSection[0]).not.toContain('findBySuperAdmin');
-      expect(dirRequestSection[0]).not.toContain('hasSameLidAsAdmin');
     });
 
     test('admin number 6281235114745 should have access to oprrequest', async () => {
