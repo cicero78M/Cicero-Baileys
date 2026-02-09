@@ -12,7 +12,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { query } from '../src/repository/db.js';
+import dotenv from 'dotenv';
+import pg from 'pg';
+
+// Load environment variables
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,23 +43,29 @@ function validateSQLContent(content) {
     issues.push('SQL contains HTML entities (&lt;, &gt;, &amp;). File may have been copied from a web page.');
   }
   
-  // Check for truncated lines (lines ending mid-word without proper punctuation or newline)
+  // Check for truncated lines (skip comment lines)
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (line.length > 0 && line.length < 100 && /^[a-z]{2,}$/i.test(line.slice(-10))) {
-      // Line looks suspiciously truncated
-      issues.push(`Line ${i + 1} may be truncated: "${line}"`);
+    // Skip empty lines and comment lines
+    if (line.length === 0 || line.startsWith('--')) {
+      continue;
+    }
+    // Check if line looks suspiciously incomplete (ends abruptly without proper SQL termination)
+    if (line.length > 10 && !line.match(/[;,)(]$/) && line.match(/^[a-z]+$/i)) {
+      issues.push(`Line ${i + 1} may be truncated: "${line.substring(0, 50)}..."`);
     }
   }
   
   // Check for proper SQL structure
-  const hasUpdate = content.toUpperCase().includes('UPDATE');
-  const hasCreate = content.toUpperCase().includes('CREATE');
-  const hasFrom = content.toUpperCase().includes('FROM');
+  const upperContent = content.toUpperCase();
+  const hasUpdate = upperContent.includes('UPDATE');
+  const hasCreate = upperContent.includes('CREATE');
+  const hasAlter = upperContent.includes('ALTER');
+  const hasDrop = upperContent.includes('DROP');
   
-  if (!hasUpdate && !hasCreate) {
-    issues.push('SQL does not contain UPDATE or CREATE statements. May not be a valid migration.');
+  if (!hasUpdate && !hasCreate && !hasAlter && !hasDrop) {
+    issues.push('SQL does not contain common DDL/DML statements. May not be a valid migration.');
   }
   
   return issues;
@@ -95,11 +105,29 @@ async function runMigration(migrationPath) {
     log('✓ No issues detected in SQL content', colors.green);
   }
   
-  // Execute migration
+  // Create database connection
+  const client = new pg.Client({
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASS,
+    port: process.env.DB_PORT || 5432
+  });
+  
   try {
+    log('\nConnecting to database...', colors.cyan);
+    log(`  Host: ${process.env.DB_HOST}:${process.env.DB_PORT || 5432}`, colors.blue);
+    log(`  Database: ${process.env.DB_NAME}`, colors.blue);
+    log(`  User: ${process.env.DB_USER}`, colors.blue);
+    
+    await client.connect();
+    log('✓ Connected to database', colors.green);
+    
     log('\nExecuting migration...', colors.cyan);
-    await query(content);
+    await client.query(content);
     log('\n✓ Migration completed successfully!', colors.green);
+    
+    await client.end();
     process.exit(0);
   } catch (error) {
     log(`\n❌ Migration failed:`, colors.red);
@@ -108,6 +136,13 @@ async function runMigration(migrationPath) {
       log('\nStack trace:', colors.red);
       log(error.stack, colors.red);
     }
+    
+    try {
+      await client.end();
+    } catch (e) {
+      // Ignore connection close errors
+    }
+    
     process.exit(1);
   }
 }
@@ -118,6 +153,18 @@ const args = process.argv.slice(2);
 if (args.length === 0) {
   log('Usage: node scripts/run_migration.js <migration-file>', colors.yellow);
   log('Example: node scripts/run_migration.js sql/migrations/20260209_add_unique_constraint_user_whatsapp.sql', colors.yellow);
+  process.exit(1);
+}
+
+// Check required environment variables
+const requiredEnvVars = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASS'];
+const missingVars = requiredEnvVars.filter(v => !process.env[v]);
+
+if (missingVars.length > 0) {
+  log('\n❌ Missing required environment variables:', colors.red);
+  missingVars.forEach(v => log(`  - ${v}`, colors.red));
+  log('\nPlease ensure your .env file is configured correctly.', colors.yellow);
+  log('See .env.example for reference.', colors.yellow);
   process.exit(1);
 }
 
