@@ -12,11 +12,7 @@ import { notFound, errorHandler } from './src/middleware/errorHandler.js';
 import { authRequired } from './src/middleware/authMiddleware.js';
 import { dedupRequest } from './src/middleware/dedupRequestMiddleware.js';
 import { sensitivePathGuard } from './src/middleware/sensitivePathGuard.js';
-import { initTelegramBot } from './src/service/telegramService.js';
 import { startOtpWorker } from './src/service/otpQueue.js';
-
-// Initialize Telegram bot
-initTelegramBot();
 
 startOtpWorker().catch(err => console.error('[OTP] worker error', err));
 

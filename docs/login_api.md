@@ -69,7 +69,7 @@ The `whatsapp` field should contain digits only; any non-numeric characters will
 }
 ```
 
-Every new dashboard account is created with `status` set to `false` and an approval request containing the username, ID, role, WhatsApp number, and client ID is sent to the WhatsApp administrators. They can approve using `approvedash#<username>` or reject with `denydash#<username>`.
+Every new dashboard account is created with `status` set to `false`. Administrators need to manually approve accounts in the database or through the admin interface.
 
 Successful dashboard login responses now include premium metadata when available:
 
