@@ -160,7 +160,6 @@ Admins can respond to confirmed requests directly from WhatsApp:
 
 - Approve (new format): `grant access#<username>` (or `grant access#<dashboard_user_id>`)
 - Deny (new format): `deny access#<username>` (or `deny access#<dashboard_user_id>`)
-- Legacy format (still supported): `grantdashsub#<request_token>` or `denydashsub#<request_token>`
 
 Admin broadcast now fires as soon as a request is created (pending), so Ditbinmas
 admins see the submission immediately even if the requester has not uploaded a
