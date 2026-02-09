@@ -60,7 +60,7 @@ INSERT INTO "user" (user_id, nama, whatsapp, created_at) VALUES
 --           user_b and user_c whatsapp becomes NULL
 ```
 
-### Scenario 3: Unique index allows NULL values
+### Scenario 3: NULL and empty values excluded from unique constraint
 ```sql
 -- Setup
 INSERT INTO "user" (user_id, nama, whatsapp) VALUES 
@@ -70,7 +70,7 @@ INSERT INTO "user" (user_id, nama, whatsapp) VALUES
   ('user4', 'Empty Phone 2', '');
 
 -- Run migration
--- Expected: All records remain, index allows multiple NULL/empty values
+-- Expected: All records remain, partial index excludes NULL/empty values from uniqueness check
 ```
 
 ## Files Changed
