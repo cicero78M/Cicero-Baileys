@@ -15,7 +15,7 @@
 
 **Cicero_V2** is an automation backend for monitoring social media, managing editorial workflows, and orchestrating WhatsApp messaging. The service ingests Instagram and TikTok metrics for multiple clients, tracks attendance, powers daily/weekly reporting, manages premium subscriptions, and now drives the Penmas editorial approval process. Two WhatsApp sessions are maintained—one for operator interactions and another as a gateway for directorate broadcasts—while OTP distribution has moved to instant email delivery.
 
-The full architecture is described in [docs/enterprise_architecture.md](docs/enterprise_architecture.md). Scheduled activities are listed in [docs/activity_schedule.md](docs/activity_schedule.md). See [docs/metadata_flow.md](docs/metadata_flow.md) for the data movement from collection to reporting. Additional guides are available for [server migration](docs/server_migration.md), [RabbitMQ](docs/rabbitmq.md), [Redis](docs/redis.md), [database structure](docs/database_structure.md), [premium subscriptions](docs/premium_subscription.md), [Nginx configuration](docs/reverse_proxy_config.md), [PostgreSQL backups](docs/pg_backup_gdrive.md), [naming conventions](docs/naming_conventions.md), [Login API guide](docs/login_api.md), [Instagram Rapid API](docs/instaRapidApi.md), [WhatsApp user registration guide](docs/wa_user_registration.md), [WhatsApp client lifecycle & troubleshooting](docs/whatsapp_client_lifecycle.md), [workflow & usage guide](docs/workflow_usage_guide.md), and [editorial workflow](docs/wa_operator_request.md).
+The full architecture is described in [docs/enterprise_architecture.md](docs/enterprise_architecture.md). Scheduled activities are listed in [docs/activity_schedule.md](docs/activity_schedule.md). See [docs/metadata_flow.md](docs/metadata_flow.md) for the data movement from collection to reporting. Additional guides are available for [server migration](docs/server_migration.md), [database migrations](docs/running_migrations.md), [RabbitMQ](docs/rabbitmq.md), [Redis](docs/redis.md), [database structure](docs/database_structure.md), [premium subscriptions](docs/premium_subscription.md), [Nginx configuration](docs/reverse_proxy_config.md), [PostgreSQL backups](docs/pg_backup_gdrive.md), [naming conventions](docs/naming_conventions.md), [Login API guide](docs/login_api.md), [Instagram Rapid API](docs/instaRapidApi.md), [WhatsApp user registration guide](docs/wa_user_registration.md), [WhatsApp client lifecycle & troubleshooting](docs/whatsapp_client_lifecycle.md), [workflow & usage guide](docs/workflow_usage_guide.md), and [editorial workflow](docs/wa_operator_request.md).
 Accepted complaint layouts, including `Kendala` and `Rincian Kendala` headers, are documented in [docs/complaint_formats.md](docs/complaint_formats.md).
 Role-aware deactivation flows (per-role removal across WhatsApp menus and REST) are covered in [docs/user_role_deactivation.md](docs/user_role_deactivation.md).
 
@@ -33,6 +33,14 @@ Role-aware deactivation flows (per-role removal across WhatsApp menus and REST) 
 - Node.js 20 or newer
 - PostgreSQL and Redis (configure `.env` accordingly)
 - Run `npm install` before starting
+
+## Database Setup
+
+For database initialization and migrations:
+- See [docs/running_migrations.md](docs/running_migrations.md) for migration procedures
+- Use `node scripts/run_migration.js <migration-file>` to safely run migrations
+- The schema is defined in `sql/schema.sql`
+- Individual migrations are in `sql/migrations/`
 
 ---
 

@@ -11,15 +11,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import pg from 'pg';
 
 // Load environment variables
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Colors for console output
 const colors = {
@@ -139,7 +135,7 @@ async function runMigration(migrationPath) {
     
     try {
       await client.end();
-    } catch (e) {
+    } catch {
       // Ignore connection close errors
     }
     
