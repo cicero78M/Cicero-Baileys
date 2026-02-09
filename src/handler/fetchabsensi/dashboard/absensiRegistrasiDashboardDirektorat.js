@@ -16,6 +16,10 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const jam = now.toLocaleTimeString("id-ID", { hour12: false });
   const salam = getGreeting();
 
+  // Get start of today in Jakarta timezone
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+
   const { rows: clients } = await query(
     `SELECT client_id, nama FROM clients
      WHERE client_status = true AND (LOWER(client_type) = 'org' OR UPPER(client_id) = $1)
@@ -24,15 +28,18 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   );
 
   const { rows: registeredRows } = await query(
-    `SELECT duc.client_id, COUNT(*) AS operator
+    `SELECT duc.client_id, COUNT(DISTINCT du.dashboard_user_id) AS operator
      FROM dashboard_user du
      JOIN roles r ON du.role_id = r.role_id
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
      JOIN clients c ON c.client_id = duc.client_id
+     JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
      WHERE LOWER(r.role_name) = $1 AND du.status = true
        AND (LOWER(c.client_type) = 'org' OR UPPER(c.client_id) = $2)
+       AND ll.login_source = 'web'
+       AND ll.logged_at >= $3
      GROUP BY duc.client_id`,
-    [roleName, directorateId]
+    [roleName, directorateId, startOfToday]
   );
 
   const countMap = new Map(
