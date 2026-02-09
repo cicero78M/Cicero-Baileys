@@ -44,8 +44,6 @@ export const adminCommands = [
   "denysub#",
   "grantdashsub#",
   "denydashsub#",
-  "approvedash#",
-  "denydash#",
   "grantaccess#",
   "dennyaccess#",
   "denyaccess#",
