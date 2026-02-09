@@ -25,7 +25,7 @@ import {
 } from "../fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { absensiRegistrasiDashboardDirektorat } from "../fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js";
 import { findClientById } from "../../service/clientService.js";
-import { getGreeting, sortDivisionKeys, formatNama } from "../../utils/utilsHelper.js";
+import { getGreeting, sortDivisionKeys, formatNama, filterAttendanceUsers } from "../../utils/utilsHelper.js";
 import { sendWAFile, safeSendMessage, sendWithClientFallback } from "../../utils/waHelper.js";
 import { writeFile, mkdir, readFile, unlink, stat } from "fs/promises";
 import { join, basename } from "path";
@@ -797,23 +797,6 @@ async function absensiKomentarDitbinmas(clientId) {
 }
 
 /**
- * Filter to exclude users with direktorat client_type and satfung "sat intelkam"
- * from attendance reports
- */
-function filterOutSatIntelkam(users, clientType) {
-  return users.filter((u) => {
-    // Only filter if client is direktorat type
-    if (clientType !== "direktorat") {
-      return true;
-    }
-    
-    // Filter out users with satfung = "sat intelkam" (case insensitive)
-    const satfung = (u.divisi || "").toLowerCase().trim();
-    return satfung !== "sat intelkam" && satfung !== "satintelkam";
-  });
-}
-
-/**
  * Format rekap data personil based on category
  * Categories: all, complete, incomplete, not_yet
  */
@@ -835,7 +818,7 @@ async function formatRekapDataPersonil(clientId, category = "all") {
   }
 
   // Filter out sat intelkam users from attendance
-  const users = filterOutSatIntelkam(allUsers, clientType);
+  const users = filterAttendanceUsers(allUsers, clientType);
 
   const salam = getGreeting();
   const now = new Date();
@@ -3986,7 +3969,6 @@ export {
   formatExecutiveSummary,
   formatRekapBelumLengkapDirektorat,
   formatRekapDataPersonil,
-  filterOutSatIntelkam,
   formatRekapAllSosmed,
 };
 
