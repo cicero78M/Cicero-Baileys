@@ -12,6 +12,9 @@ const BIND_TIMEOUT = 2 * 60 * 1000; // 2 menit
 const NO_REPLY_TIMEOUT = 90 * 1000; // 90 detik
 const USER_REQUEST_LINK_TIMEOUT = 2 * 60 * 1000; // 2 menit
 
+export const SESSION_EXPIRED_MESSAGE =
+  "⏰ *Sesi Telah Berakhir*\n\nSesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.\n\nUntuk memulai lagi, ketik *userrequest*.";
+
 export const userMenuContext = {};         // { chatId: {step, ...} }
 export const updateUsernameSession = {};   // { chatId: {step, ...} }
 export const userRequestLinkSessions = {}; // { chatId: { ... } }
@@ -49,10 +52,7 @@ export function setMenuTimeout(chatId, waClient, expectReply = false) {
   ctx.timeout = setTimeout(() => {
     if (waClient) {
       waClient
-        .sendMessage(
-          chatId,
-          "⏰ *Sesi Telah Berakhir*\n\nSesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.\n\nUntuk memulai lagi, ketik *userrequest*."
-        )
+        .sendMessage(chatId, SESSION_EXPIRED_MESSAGE)
         .catch((e) => console.error(e));
     }
     delete userMenuContext[chatId];

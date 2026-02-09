@@ -2,13 +2,19 @@ import { jest } from "@jest/globals";
 
 process.env.JWT_SECRET = "testsecret";
 
-import { setMenuTimeout, userMenuContext } from "../src/utils/sessionsHelper.js";
+import {
+  setMenuTimeout,
+  userMenuContext,
+  SESSION_EXPIRED_MESSAGE,
+} from "../src/utils/sessionsHelper.js";
 
 describe("User Menu Session Timeout", () => {
   const chatId = "628111222333@s.whatsapp.net";
   let waClient;
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    
     // Clear any existing sessions
     if (userMenuContext[chatId]) {
       const ctx = userMenuContext[chatId];
@@ -24,6 +30,9 @@ describe("User Menu Session Timeout", () => {
   });
 
   afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+    
     // Clean up any remaining timeouts
     if (userMenuContext[chatId]) {
       const ctx = userMenuContext[chatId];
@@ -41,46 +50,27 @@ describe("User Menu Session Timeout", () => {
     expect(userMenuContext[chatId].timeout).toBeDefined();
   });
 
-  it("should send warning message 2 minutes after session start", (done) => {
+  it("should send warning message 2 minutes after session start", () => {
     setMenuTimeout(chatId, waClient);
 
-    // Wait for warning timeout (should be 2 minutes = 120000ms)
-    // For testing, we'll verify the timeout was set
-    expect(userMenuContext[chatId].warningTimeout).toBeDefined();
+    // Fast-forward 2 minutes (120000ms)
+    jest.advanceTimersByTime(120000);
 
-    // Clean up and complete test
-    clearTimeout(userMenuContext[chatId].timeout);
-    clearTimeout(userMenuContext[chatId].warningTimeout);
-    delete userMenuContext[chatId];
-    done();
+    expect(waClient.sendMessage).toHaveBeenCalledWith(
+      chatId,
+      "⏰ Sesi akan berakhir dalam 1 menit. Balas sesuai pilihan Anda untuk melanjutkan."
+    );
+    expect(waClient.sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("should send expiry message after 3 minutes of inactivity", (done) => {
+  it("should send expiry message after 3 minutes of inactivity", () => {
     setMenuTimeout(chatId, waClient);
 
-    // For testing purposes, we'll manually trigger the timeout
-    // In real scenario, this would wait 3 minutes
-    const ctx = userMenuContext[chatId];
-    
-    // Clear the actual timeout to prevent waiting
-    clearTimeout(ctx.timeout);
-    clearTimeout(ctx.warningTimeout);
+    // Fast-forward 3 minutes (180000ms)
+    jest.advanceTimersByTime(180000);
 
-    // Manually trigger expiry
-    waClient
-      .sendMessage(
-        chatId,
-        "⏰ *Sesi Telah Berakhir*\n\nSesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit.\n\nUntuk memulai lagi, ketik *userrequest*."
-      )
-      .then(() => {
-        delete userMenuContext[chatId];
-        
-        expect(waClient.sendMessage).toHaveBeenCalledWith(
-          chatId,
-          expect.stringContaining("Sesi Anda telah berakhir karena tidak ada aktivitas selama 3 menit")
-        );
-        done();
-      });
+    expect(waClient.sendMessage).toHaveBeenCalledWith(chatId, SESSION_EXPIRED_MESSAGE);
+    expect(userMenuContext[chatId]).toBeUndefined();
   });
 
   it("should clear all timeouts when session is closed", () => {
@@ -109,25 +99,37 @@ describe("User Menu Session Timeout", () => {
 
     // Timeouts should be different objects (old one cleared, new one created)
     expect(firstTimeout).not.toBe(secondTimeout);
-
-    // Clean up
-    clearTimeout(userMenuContext[chatId].timeout);
-    clearTimeout(userMenuContext[chatId].warningTimeout);
-    if (userMenuContext[chatId].noReplyTimeout) {
-      clearTimeout(userMenuContext[chatId].noReplyTimeout);
-    }
-    delete userMenuContext[chatId];
   });
 
   it("should set noReplyTimeout when expectReply is true", () => {
     setMenuTimeout(chatId, waClient, true);
 
     expect(userMenuContext[chatId].noReplyTimeout).toBeDefined();
+    
+    // Fast-forward 90 seconds to trigger noReply message
+    jest.advanceTimersByTime(90000);
 
-    // Clean up
-    clearTimeout(userMenuContext[chatId].timeout);
-    clearTimeout(userMenuContext[chatId].warningTimeout);
-    clearTimeout(userMenuContext[chatId].noReplyTimeout);
-    delete userMenuContext[chatId];
+    expect(waClient.sendMessage).toHaveBeenCalledWith(
+      chatId,
+      "🤖 Kami masih menunggu balasan Anda. Silakan jawab jika sudah siap agar sesi dapat berlanjut."
+    );
+  });
+
+  it("should send both warning and expiry messages at correct times", () => {
+    setMenuTimeout(chatId, waClient);
+
+    // Fast-forward 2 minutes - should trigger warning
+    jest.advanceTimersByTime(120000);
+    expect(waClient.sendMessage).toHaveBeenCalledTimes(1);
+    expect(waClient.sendMessage).toHaveBeenCalledWith(
+      chatId,
+      "⏰ Sesi akan berakhir dalam 1 menit. Balas sesuai pilihan Anda untuk melanjutkan."
+    );
+
+    // Fast-forward another 1 minute (total 3 minutes) - should trigger expiry
+    jest.advanceTimersByTime(60000);
+    expect(waClient.sendMessage).toHaveBeenCalledTimes(2);
+    expect(waClient.sendMessage).toHaveBeenCalledWith(chatId, SESSION_EXPIRED_MESSAGE);
+    expect(userMenuContext[chatId]).toBeUndefined();
   });
 });
