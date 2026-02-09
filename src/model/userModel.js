@@ -482,6 +482,14 @@ export async function updateUserField(user_id, field, value) {
     const originalValue = value;
     value = normalizeWhatsappField(value);
     console.log(`[userModel] updateUserField whatsapp: user_id=${uid}, original="${originalValue}", normalized="${value}"`);
+    
+    // Check if WhatsApp number is already in use by another user
+    if (value && value !== '') {
+      const existingUser = await findUserByWhatsApp(value);
+      if (existingUser && existingUser.user_id !== uid) {
+        throw new Error('Nomor WhatsApp ini sudah terdaftar pada akun lain');
+      }
+    }
   }
   if (roleFields.includes(field)) {
     if (value) await addRole(uid, field);

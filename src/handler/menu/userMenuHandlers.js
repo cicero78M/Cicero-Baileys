@@ -164,6 +164,23 @@ export const userMenuHandlers = {
           ].join('\n')
         );
       } else {
+        // Check if the account already has a different WhatsApp number linked
+        const currentWA = normalizeWhatsappNumber(chatId);
+        if (user.whatsapp && user.whatsapp !== '' && user.whatsapp !== currentWA) {
+          await waClient.sendMessage(
+            chatId,
+            [
+              `❌ NRP/NIP *${digits}* sudah terhubung dengan nomor WhatsApp lain.`,
+              '',
+              'Satu akun hanya dapat diakses dari satu nomor WhatsApp yang terdaftar.',
+              'Jika Anda adalah pemilik akun dan nomor telah berubah, hubungi Operator Humas Polres Anda.',
+              '',
+              'Silakan masukkan NRP/NIP lain atau ketik *batal* untuk keluar.',
+            ].join('\n')
+          );
+          return;
+        }
+        
         session.step = "confirmBindUser";
         session.bindUserId = digits;
         await waClient.sendMessage(
@@ -235,10 +252,10 @@ export const userMenuHandlers = {
         );
       } catch (err) {
         console.error('[confirmBindUser] Error binding user:', err);
-        await waClient.sendMessage(
-          chatId,
-          "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*."
-        );
+        const errorMessage = err.message.includes('sudah terdaftar')
+          ? `❌ ${err.message}. Satu nomor WhatsApp hanya dapat digunakan untuk satu akun.`
+          : "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*.";
+        await waClient.sendMessage(chatId, errorMessage);
         session.exit = true;
       }
       return;
@@ -279,10 +296,10 @@ export const userMenuHandlers = {
         await waClient.sendMessage(chatId, formatFieldList(session.isDitbinmas));
       } catch (err) {
         console.error('[confirmBindUpdate] Error updating WhatsApp field:', err);
-        await waClient.sendMessage(
-          chatId,
-          "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*."
-        );
+        const errorMessage = err.message.includes('sudah terdaftar')
+          ? `❌ ${err.message}. Satu nomor WhatsApp hanya dapat digunakan untuk satu akun.`
+          : "❌ Terjadi kesalahan saat menghubungkan nomor. Silakan coba lagi dengan ketik *userrequest*.";
+        await waClient.sendMessage(chatId, errorMessage);
         session.exit = true;
       }
       return;
