@@ -2,9 +2,9 @@
 
 ## Overview
 
-The system provides **multiple access mechanisms** for `dirrequest` and `oprrequest` menus. Users in `ADMIN_WHATSAPP` (from `.env`) have the **highest priority** access to both menus.
+The system provides **multiple access mechanisms** for `oprrequest` menu. The `dirrequest` menu is now **accessible from all WhatsApp numbers** without any authorization restrictions.
 
-**Important:** The admin number `6281235114745` must be included in the `ADMIN_WHATSAPP` environment variable to have access to these menus.
+**Important:** The admin number `6281235114745` must be included in the `ADMIN_WHATSAPP` environment variable to have access to the `oprrequest` menu.
 
 ## Configuration
 
@@ -59,23 +59,14 @@ Users can access the `oprrequest` menu through **three mechanisms** (checked in 
 
 ### dirrequest Menu
 
-Users can access the `dirrequest` menu through **three mechanisms** (checked in order):
+The `dirrequest` menu is now **accessible from all WhatsApp numbers** without any authorization restrictions.
 
-1. **ADMIN_WHATSAPP** (Highest Priority)
-   - Location: `src/service/waService.js` line ~2403
-   - Check: `isAdminWhatsApp(chatId)`
-   - Behavior: Shows client selection menu for all active directorate clients
-   - Implementation: Fetches via `findAllActiveDirektoratClients()`
+- Location: `src/service/waService.js` line ~2451
+- Check: None (open access)
+- Behavior: Shows client selection menu for all active directorate clients
+- Implementation: Fetches via `findAllActiveDirektoratClients()`
 
-2. **Operator**
-   - Location: `src/service/waService.js` line ~2443
-   - Check: `findByOperator(waId)`
-   - Behavior: Direct access to dirrequest menu for their assigned client
-
-3. **Super Admin**
-   - Location: `src/service/waService.js` line ~2446
-   - Check: `findBySuperAdmin(waId)`
-   - Behavior: Direct access to dirrequest menu for their assigned client
+**Note:** Previously, dirrequest had multiple access mechanisms similar to oprrequest. As of the latest update, all WhatsApp numbers can access dirrequest and select from available directorate clients.
 
 ## Access Flow Diagrams
 
@@ -98,13 +89,11 @@ Deny access with error message
 ```
 User sends "dirrequest"
     ↓
-Is user in ADMIN_WHATSAPP? → YES → Show client selection for all directorate clients
-    ↓ NO
-Is user an Operator? → YES → Show dirrequest menu for their client
-    ↓ NO
-Is user a Super Admin? → YES → Show dirrequest menu for their client
-    ↓ NO
-Deny access with error message
+Show client selection for all directorate clients
+    ↓
+User selects a client
+    ↓
+Access dirrequest menu for selected client
 ```
 
 ## Implementation Details
@@ -157,6 +146,14 @@ The system automatically normalizes WhatsApp numbers:
 
 2. **Accessing dirrequest:**
    - Send message: `dirrequest`
+   - System shows list of all active directorate clients (same behavior as all users)
+   - Select client by number or client_id
+   - Access dirrequest menu for selected client
+
+### For All WhatsApp Users
+
+1. **Accessing dirrequest:**
+   - Send message: `dirrequest`
    - System shows list of all active directorate clients
    - Select client by number or client_id
    - Access dirrequest menu for selected client
@@ -168,20 +165,17 @@ The system automatically normalizes WhatsApp numbers:
    - System automatically identifies your assigned client
    - Direct access to operator menu (no client selection)
 
-2. **Accessing dirrequest:**
-   - Send message: `dirrequest`
-   - System automatically identifies your assigned client
-   - Direct access to dirrequest menu (no client selection)
-
 ## Security Considerations
 
-1. **Access Priority:** ADMIN_WHATSAPP check runs **before** operator/super admin checks, ensuring admins always get full access regardless of their database roles.
+1. **oprrequest Access:** ADMIN_WHATSAPP check runs **before** operator/super admin checks, ensuring admins always get full access regardless of their database roles.
 
-2. **Number Format:** All numbers are normalized to prevent bypassing through format variations.
+2. **dirrequest Access:** No authorization restrictions - all WhatsApp numbers can access dirrequest and select from available directorate clients.
 
-3. **Environment-based:** Admin list is loaded from `.env` file, separate from database configurations.
+3. **Number Format:** All numbers are normalized to prevent bypassing through format variations.
 
-4. **No Fallback:** If a user doesn't match any access mechanism, access is denied with a clear error message.
+4. **Environment-based:** Admin list for oprrequest is loaded from `.env` file, separate from database configurations.
+
+5. **No Fallback for oprrequest:** If a user doesn't match any access mechanism for oprrequest, access is denied with a clear error message.
 
 ## Testing
 
@@ -194,35 +188,45 @@ npm test tests/adminWhatsappAccess.test.js
 
 ## Troubleshooting
 
-### User cannot access despite being in ADMIN_WHATSAPP
+### User cannot access oprrequest despite being in ADMIN_WHATSAPP
 
 1. Check if `.env` file exists and is loaded
 2. Verify `ADMIN_WHATSAPP` is set correctly (comma-separated, no spaces in numbers)
 3. Check if user's WhatsApp number matches exactly (including country code)
 4. Restart the application after changing `.env`
 
-### Admin gets "operator only" error
+### Admin gets "operator only" error for oprrequest
 
 This should not happen if `ADMIN_WHATSAPP` is configured correctly. The admin check runs first. If you see this error:
 1. Verify the number is in `ADMIN_WHATSAPP`
 2. Check application logs for `isAdminWhatsApp` function calls
 3. Ensure `.env` file is in the correct location
 
-### Client selection doesn't show
+### Client selection doesn't show for dirrequest
+
+For all users, client selection is fetched from database:
+- Fetches all active directorate clients via `findAllActiveDirektoratClients()`
+
+If no clients appear, check database for clients with appropriate types and active status.
+
+### Client selection doesn't show for oprrequest (admins only)
 
 For admins, client selection is fetched from database:
-- **oprrequest:** Fetches all clients with `client_type = 'org'`
-- **dirrequest:** Fetches all active directorate clients
+- Fetches all clients with `client_type = 'org'`
 
 If no clients appear, check database for clients with appropriate types and status.
 
 ## Maintenance
 
-When adding new admin WhatsApp numbers:
+### Adding new admin WhatsApp numbers (for oprrequest access):
 
 1. Edit `.env` file
-2. Add number to comma-separated list
+2. Add number to comma-separated list in `ADMIN_WHATSAPP`
 3. Restart application
-4. Test access by sending `oprrequest` or `dirrequest` message
+4. Test access by sending `oprrequest` message
 
 No database changes or code modifications needed!
+
+### Note on dirrequest access
+
+Since dirrequest is now accessible from all WhatsApp numbers, no configuration is needed to grant access to new users. All users can type `dirrequest` to access the menu.

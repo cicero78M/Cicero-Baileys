@@ -2449,114 +2449,26 @@ Ketik *angka menu* di atas, atau *batal* untuk keluar.
   }
 
   if (text.toLowerCase() === "dirrequest") {
-    // Check if user is WhatsApp admin - they need to select a client
-    if (isAdminWhatsApp(chatId)) {
-      const directorateClients =
-        await clientService.findAllActiveDirektoratClients();
-      const activeDirectorateClients = (directorateClients || []).map((client) => ({
-        client_id: (client.client_id || "").toUpperCase(),
-        nama: client.nama || client.client_id || "",
-      }));
+    // Allow access from all WhatsApp numbers
+    const directorateClients =
+      await clientService.findAllActiveDirektoratClients();
+    const activeDirectorateClients = (directorateClients || []).map((client) => ({
+      client_id: (client.client_id || "").toUpperCase(),
+      nama: client.nama || client.client_id || "",
+    }));
 
-      if (!activeDirectorateClients.length) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
-        );
-        return;
-      }
-
-      setSession(chatId, {
-        menu: "dirrequest",
-        step: "choose_client",
-        dir_clients: activeDirectorateClients,
-      });
-      await runMenuHandler({
-        handlers: dirRequestHandlers,
-        menuName: "dirrequest",
-        session: getSession(chatId),
-        chatId,
-        text: "",
-        waClient,
-        clientLabel,
-        invalidStepMessage:
-          "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
-
-    // Check if user is operator or super admin of a directorate client
-    const waId =
-      userWaNum.startsWith("62") ? userWaNum : "62" + userWaNum.replace(/^0/, "");
-    const operator = await findByOperator(waId);
-    let superAdmin = null;
-    if (!operator) {
-      superAdmin = await findBySuperAdmin(waId);
-    }
-    
-    // Check if user has same client_id as any admin (LID check)
-    const hasSameLidAsAdmin = !operator && !superAdmin 
-      ? await hasSameClientIdAsAdmin(waId, pool.query)
-      : false;
-    
-    if (!operator && !superAdmin && !hasSameLidAsAdmin) {
+    if (!activeDirectorateClients.length) {
       await waClient.sendMessage(
         chatId,
-        "❌ Menu ini hanya dapat diakses oleh administrator WhatsApp, operator/super admin client Direktorat, atau pengguna dalam organisasi yang sama dengan admin."
+        "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
       );
       return;
     }
 
-    // If user has same LID as admin, show DIREKTORAT client selection
-    if (hasSameLidAsAdmin && !operator && !superAdmin) {
-      const directorateClients =
-        await clientService.findAllActiveDirektoratClients();
-      const activeDirectorateClients = (directorateClients || []).map((client) => ({
-        client_id: (client.client_id || "").toUpperCase(),
-        nama: client.nama || client.client_id || "",
-      }));
-
-      if (!activeDirectorateClients.length) {
-        await waClient.sendMessage(
-          chatId,
-          "❌ Tidak ada client Direktorat aktif yang dapat dipilih saat ini."
-        );
-        return;
-      }
-
-      setSession(chatId, {
-        menu: "dirrequest",
-        step: "choose_client",
-        dir_clients: activeDirectorateClients,
-      });
-      await runMenuHandler({
-        handlers: dirRequestHandlers,
-        menuName: "dirrequest",
-        session: getSession(chatId),
-        chatId,
-        text: "",
-        waClient,
-        clientLabel,
-        invalidStepMessage:
-          "⚠️ Sesi menu dirrequest tidak dikenali. Ketik *dirrequest* ulang atau *batal*.",
-        failureMessage:
-          "❌ Terjadi kesalahan pada menu dirrequest. Ketik *dirrequest* ulang untuk memulai kembali.",
-      });
-      return;
-    }
-
-    // Get the client for this operator/super admin
-    const clientForUser = operator || superAdmin;
-    
-    // Check if this client is a directorate type
-    // We'll allow access if they're an operator/super admin, and let the handler validate client type
     setSession(chatId, {
       menu: "dirrequest",
       step: "choose_client",
-      dir_clients: [],
-      selected_client_id: clientForUser.client_id,
+      dir_clients: activeDirectorateClients,
     });
     await runMenuHandler({
       handlers: dirRequestHandlers,
