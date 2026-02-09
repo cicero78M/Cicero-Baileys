@@ -44,9 +44,12 @@ export const closeSession = async (
 export const userMenuHandlers = {
   main: async (session, chatId, _text, waClient, _pool, userModel) => {
     const pengirim = normalizeWhatsappNumber(chatId);
+    console.log(`[userrequest] Looking up user: chatId=${chatId}, normalized=${pengirim}`);
     const userByWA = await userModel.findUserByWhatsApp(pengirim);
 
     if (userByWA) {
+      console.log(`[userrequest] User found: user_id=${userByWA.user_id}, nama=${userByWA.nama}`);
+
       session.isDitbinmas = !!userByWA.ditbinmas;
       session.identityConfirmed = true;
       session.user_id = userByWA.user_id;
@@ -67,6 +70,7 @@ export const userMenuHandlers = {
     }
 
     // No WhatsApp number registered, ask for NRP/NIP
+    console.log(`[userrequest] User NOT found for normalized number: ${pengirim}`);
     session.step = "inputUserId";
     const msgText = [
       "🔐 *Registrasi Akun*",
@@ -190,9 +194,11 @@ export const userMenuHandlers = {
   confirmBindUser: async (session, chatId, text, waClient, pool, userModel) => {
     const answer = text.trim().toLowerCase();
     const waNum = normalizeWhatsappNumber(chatId);
+    console.log(`[userrequest] Binding: chatId=${chatId}, normalized=${waNum}`);
     if (answer === "ya") {
       try {
         const user_id = session.bindUserId;
+        console.log(`[userrequest] Storing WhatsApp ${waNum} for user ${user_id}`);
         await userModel.updateUserField(user_id, "whatsapp", waNum);
         
         try {
@@ -203,6 +209,7 @@ export const userMenuHandlers = {
         }
         
         const user = await userModel.findUserById(user_id);
+        console.log(`[userrequest] Binding successful. User record now has whatsapp=${user.whatsapp}`);
         session.isDitbinmas = !!user.ditbinmas;
         await waClient.sendMessage(
           chatId,
