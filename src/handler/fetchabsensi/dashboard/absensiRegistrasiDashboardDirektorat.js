@@ -16,7 +16,8 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const jam = now.toLocaleTimeString("id-ID", { hour12: false });
   const salam = getGreeting();
 
-  // Get start of today in Jakarta timezone
+  // Get start of today in local timezone (Jakarta/Asia timezone).
+  // This is consistent with how dates are displayed throughout the application.
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
