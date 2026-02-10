@@ -29,7 +29,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
     [directorateId]
   );
 
-  const { rows: registeredRows } = await query(
+  const { rows: registeredRows} = await query(
     `SELECT duc.client_id, COUNT(DISTINCT du.dashboard_user_id) AS operator
      FROM dashboard_user du
      JOIN roles r ON du.role_id = r.role_id
@@ -37,7 +37,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
      JOIN clients c ON c.client_id = duc.client_id
      JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
      WHERE LOWER(r.role_name) = $1 AND du.status = true
-       AND (LOWER(c.client_type) = 'org' OR UPPER(c.client_id) = $2)
+       AND UPPER(duc.client_id) = $2
        AND ll.login_source = 'web'
        AND ll.logged_at >= $3
      GROUP BY duc.client_id`,
