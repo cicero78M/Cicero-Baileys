@@ -8,6 +8,10 @@ const { absensiRegistrasiDashboardDirektorat } = await import(
   '../src/handler/fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js'
 );
 
+beforeEach(() => {
+  mockQuery.mockClear();
+});
+
 test('generates directorate report with sequential operator counts', async () => {
   mockQuery.mockImplementation((sql) => {
     if (sql.includes('SELECT DISTINCT UPPER(duc.client_id)')) {
@@ -44,7 +48,7 @@ test('generates directorate report with sequential operator counts', async () =>
   expect(mockQuery).toHaveBeenNthCalledWith(
     1,
     expect.stringContaining('SELECT DISTINCT UPPER(duc.client_id)'),
-    ['dita']
+    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
@@ -54,10 +58,10 @@ test('generates directorate report with sequential operator counts', async () =>
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
     expect.stringContaining('JOIN login_log ll'),
-    ['dita', ['DITA', 'POLRESA', 'POLRESB'], expect.any(Date)]
+    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'], ['DITA', 'POLRESA', 'POLRESB'], expect.any(Date)]
   );
-  expect(msg).toMatch(/DIT A : 3 Dita/);
-  expect(msg).toMatch(/Sudah : 1 Polres\n- POLRES A : 1 Dita/);
+  expect(msg).toMatch(/DIT A : 3 Direktorat/);
+  expect(msg).toMatch(/Sudah : 1 Polres\n- POLRES A : 1 Direktorat/);
   expect(msg).toMatch(/Belum : 1 Polres\n- POLRES B/);
 });
 
@@ -98,7 +102,7 @@ test('generates report for DITINTELKAM with correct role label', async () => {
   expect(mockQuery).toHaveBeenNthCalledWith(
     1,
     expect.stringContaining('SELECT DISTINCT UPPER(duc.client_id)'),
-    ['ditintelkam']
+    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
@@ -108,10 +112,10 @@ test('generates report for DITINTELKAM with correct role label', async () => {
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
     expect.stringContaining('JOIN login_log ll'),
-    ['ditintelkam', ['DITINTELKAM', 'POLRES_BOJONEGORO', 'POLRES_JOMBANG', 'POLRES_KEDIRI'], expect.any(Date)]
+    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'], ['DITINTELKAM', 'POLRES_BOJONEGORO', 'POLRES_JOMBANG', 'POLRES_KEDIRI'], expect.any(Date)]
   );
-  // Should show role label "Ditintelkam" instead of "Operator"
-  expect(msg).toMatch(/DIREKTORAT INTELKAM : 1 Ditintelkam/);
+  // Should show role label "Direktorat" instead of "Ditintelkam"
+  expect(msg).toMatch(/DIREKTORAT INTELKAM : 1 Direktorat/);
   expect(msg).toMatch(/Sudah : 0 Polres/);
   expect(msg).toMatch(/Belum : 3 Polres/);
   expect(msg).toMatch(/POLRES BOJONEGORO/);

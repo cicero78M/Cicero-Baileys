@@ -2,14 +2,16 @@ import { query } from "../../../db/index.js";
 import { hariIndo } from "../../../utils/constants.js";
 import { getGreeting } from "../../../utils/utilsHelper.js";
 
+// All directorate roles to filter by
+const DIREKTORAT_ROLES = ['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'];
+
 function normalizeDirectorateId(clientId) {
   return String(clientId || "").trim().toUpperCase() || "DITBINMAS";
 }
 
 export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS") {
   const directorateId = normalizeDirectorateId(clientId);
-  const roleName = directorateId.toLowerCase();
-  const roleLabel = directorateId.charAt(0).toUpperCase() + directorateId.slice(1).toLowerCase();
+  const roleLabel = "Direktorat";
 
   const now = new Date();
   const hari = hariIndo[now.getDay()];
@@ -22,14 +24,14 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
-  // Get clients that have users with the matching role (defines the directorate's scope)
+  // Get clients that have users with ANY directorate role (defines the directorate's scope)
   const { rows: scopeClients } = await query(
     `SELECT DISTINCT UPPER(duc.client_id) AS client_id
      FROM dashboard_user du
      JOIN roles r ON du.role_id = r.role_id
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
-     WHERE LOWER(r.role_name) = $1 AND du.status = true`,
-    [roleName]
+     WHERE LOWER(r.role_name) = ANY($1) AND du.status = true`,
+    [DIREKTORAT_ROLES]
   );
 
   const scopeClientIdsSet = new Set(scopeClients.map((c) => c.client_id));
@@ -52,12 +54,12 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
      JOIN clients c ON c.client_id = duc.client_id
      JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
-     WHERE LOWER(r.role_name) = $1 AND du.status = true
+     WHERE LOWER(r.role_name) = ANY($1) AND du.status = true
        AND UPPER(duc.client_id) = ANY($2)
        AND ll.login_source = 'web'
        AND ll.logged_at >= $3
      GROUP BY duc.client_id`,
-    [roleName, scopeClientIds, startOfToday]
+    [DIREKTORAT_ROLES, scopeClientIds, startOfToday]
   );
 
   const countMap = new Map(
