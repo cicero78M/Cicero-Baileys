@@ -82,48 +82,30 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   startOfToday.setHours(0, 0, 0, 0);
 
   /**
-   * Scope menu 11 = Direktorat terpilih + unit bawahan pada hierarchy yang sama.
+   * Scope menu 11 = Direktorat terpilih + seluruh unit ORG/SATKER aktif lintas hierarchy parent.
    *
    * Catatan terminologi DB:
    * - Istilah "Client ORG" di pesan WA adalah istilah legacy menu.
-   * - Pada data terbaru, unit bawahan Direktorat bisa ditandai lewat
-   *   `client_level` (utama) dengan nilai seperti `org`/`satker`.
-   * - `client_type` tetap dipakai sebagai fallback backward-compatibility.
+   * - Menu ini tidak lagi memakai kolom `parent_client_id` agar kompatibel
+   *   dengan deployment yang belum memiliki kolom tersebut.
+   * - Unit bawahan ditentukan dari `client_level` (utama) bernilai `org`/`satker`,
+   *   dengan fallback `client_type` saat `client_level` kosong.
    */
   const { rows: directorateRows } = await query(
-    `SELECT client_id, nama, client_type, regional_id, client_level, parent_client_id
+    `SELECT client_id, nama, client_type, regional_id, client_level
      FROM clients
      WHERE UPPER(client_id) = $1
      LIMIT 1`,
     [directorateId]
   );
   const directorateMetadata = directorateRows[0] || null;
-  const directorateRegionalId =
-    directorateMetadata?.regional_id && String(directorateMetadata.regional_id).trim()
-      ? String(directorateMetadata.regional_id).trim().toUpperCase()
-      : null;
-
   const { rows: orgClients } = await query(
     `SELECT client_id, nama, client_type, client_level
      FROM clients
      WHERE client_status = true
-       AND LOWER(TRIM(COALESCE(NULLIF(client_level, ''), NULLIF(client_type, '')))) = ANY($3)
-       AND (
-         UPPER(COALESCE(parent_client_id, '')) = $1
-         OR (
-           $2::TEXT IS NOT NULL
-           AND UPPER(COALESCE(regional_id, '')) = $2
-           AND NOT EXISTS (
-             SELECT 1
-             FROM clients pc
-             WHERE pc.client_status = true
-               AND LOWER(TRIM(COALESCE(NULLIF(pc.client_level, ''), NULLIF(pc.client_type, '')))) = ANY($3)
-               AND UPPER(COALESCE(pc.parent_client_id, '')) = $1
-           )
-         )
-       )
+       AND LOWER(TRIM(COALESCE(NULLIF(client_level, ''), NULLIF(client_type, '')))) = ANY($1)
      ORDER BY nama`,
-    [directorateId, directorateRegionalId, MENU_11_DIRECTORATE_UNIT_LEVELS]
+    [MENU_11_DIRECTORATE_UNIT_LEVELS]
   );
 
   const clients = [];
