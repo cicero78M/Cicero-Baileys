@@ -145,26 +145,24 @@ dirrequest tanpa langkah tambahan.
   - jika role hasil mapping belum ada di tabel `roles`, proses dihentikan
     dengan error eksplisit bahwa konfigurasi role belum sinkron.
 - Sistem tidak lagi melakukan fallback diam-diam ke role `ditbinmas`.
-- Scope client yang ditampilkan untuk menu **1️⃣1️⃣** sekarang mengikuti
-  aturan kompatibilitas deployment:
-  1. client Direktorat terpilih **selalu** masuk scope,
-  2. seluruh client aktif dengan level `org`/`satker` ikut dihitung tanpa
-     ketergantungan ke kolom `parent_client_id`.
-- Definisi unit bawahan untuk menu **1️⃣1️⃣** mengikuti terminologi DB terbaru:
-  - sumber utama: `client_level` (case-insensitive) untuk nilai `org` atau
-    `satker`,
-  - fallback kompatibilitas: `client_type` saat `client_level` kosong.
-- Istilah **Client ORG** pada teks pesan WA dipertahankan sebagai label legacy,
-  namun secara data kini mencakup client level `org` dan `satker`.
+- Scope client menu **1️⃣1️⃣** sekarang mengikuti alur direktorat terbaru:
+  1. validasi metadata direktorat terpilih harus sinkron (`client_id` +
+     `client_type=direktorat`),
+  2. daftar client bawahan diambil dari seluruh client aktif dengan
+     `client_type=org`,
+  3. query dashboard user/login memakai role direktorat terpilih pada scope
+     `Direktorat + ORG aktif` untuk membangun status absensi sudah/belum.
+- Istilah **Client ORG** pada teks pesan WA tetap dipakai sebagai label output
+  menu.
 - Rekap menampilkan dua sisi data sekaligus berdasarkan role yang sama:
   - status kepemilikan user dashboard (*sudah punya* vs *belum punya*), dan
   - absensi login web hari ini (*sudah absensi* vs *belum absensi*).
 - Dampak perilaku:
-  - semua ORG/SATKER aktif dapat muncul pada daftar rekap menu **1️⃣1️⃣**,
-  - Direktorat tetap muncul pada hasil meski tidak ada ORG/SATKER yang cocok.
+  - seluruh client ORG aktif dapat muncul pada daftar rekap menu **1️⃣1️⃣**,
+  - Direktorat terpilih tetap dicantumkan sebagai ringkasan utama.
 - Contoh: jika operator memilih `DITINTELKAM`, query menghitung
   `dashboard_user` dengan role `ditintelkam` untuk `DITINTELKAM` dan seluruh
-  ORG/SATKER aktif, termasuk saat menyusun daftar client yang belum memiliki
+  client ORG aktif, termasuk saat menyusun daftar client yang belum memiliki
   user dashboard.
 
 - Prosedur menambah Direktorat baru untuk menu **1️⃣1️⃣**:

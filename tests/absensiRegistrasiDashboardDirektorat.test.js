@@ -30,7 +30,7 @@ test('uses global active ORG/SATKER scope without parent_client_id dependency', 
         ],
       };
     }
-    if (sql.includes('COALESCE(NULLIF(client_level')) {
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
       return {
         rows: [{ client_id: 'ORG_PARENT', nama: 'Org Parent', client_type: 'org' }],
       };
@@ -68,8 +68,8 @@ test('uses global active ORG/SATKER scope without parent_client_id dependency', 
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
-    expect.stringContaining('COALESCE(NULLIF(client_level'),
-    [['org', 'satker']]
+    expect.stringContaining('LOWER(TRIM(client_type)) = $1'),
+    ['org']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     4,
@@ -107,7 +107,7 @@ test('fails fast when directorate role mapping is missing', async () => {
         ],
       };
     }
-    if (sql.includes('COALESCE(NULLIF(client_level')) {
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
       return {
         rows: [{ client_id: 'ORG_JATIM', nama: 'Org Jatim', client_type: 'org' }],
       };
@@ -174,7 +174,7 @@ test('uses global ORG/SATKER scope for registered directorate', async () => {
         ],
       };
     }
-    if (sql.includes('COALESCE(NULLIF(client_level')) {
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
       return {
         rows: [{ client_id: 'ORG_JATIM', nama: 'Org Jatim', client_type: 'org' }],
       };
@@ -196,8 +196,8 @@ test('uses global ORG/SATKER scope for registered directorate', async () => {
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
-    expect.stringContaining('COALESCE(NULLIF(client_level'),
-    [['org', 'satker']]
+    expect.stringContaining('LOWER(TRIM(client_type)) = $1'),
+    ['org']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     4,
@@ -226,7 +226,7 @@ test('keeps selected directorate in scope when ORG relation is empty', async () 
         ],
       };
     }
-    if (sql.includes('COALESCE(NULLIF(client_level')) {
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
       return { rows: [] };
     }
     if (sql.includes('AS dashboard_user')) {
@@ -273,7 +273,7 @@ test('includes satker client_level in menu 11 directorate scope', async () => {
         ],
       };
     }
-    if (sql.includes('COALESCE(NULLIF(client_level')) {
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
       return {
         rows: [
           {
@@ -305,8 +305,8 @@ test('includes satker client_level in menu 11 directorate scope', async () => {
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
-    expect.stringContaining('COALESCE(NULLIF(client_level'),
-    [['org', 'satker']]
+    expect.stringContaining('LOWER(TRIM(client_type)) = $1'),
+    ['org']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     4,
@@ -314,4 +314,52 @@ test('includes satker client_level in menu 11 directorate scope', async () => {
     ['ditsamapta', ['DITSAMAPTA', 'SATKER_SAMAPTA_1']]
   );
   expect(msg).toMatch(/- SATKER SAMAPTA 1 : 1 user dashboard \(1 absensi web\)/);
+});
+
+test('fails fast when selected client_id is not found in clients table', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return { rows: [{ role_id: 5 }] };
+    }
+    if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await expect(absensiRegistrasiDashboardDirektorat('DITBINMAS')).rejects.toThrow(
+    'Client Direktorat "DITBINMAS" tidak ditemukan pada tabel clients.'
+  );
+
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining('FROM clients'),
+    ['DITBINMAS']
+  );
+});
+
+test('fails fast when selected client is not tipe direktorat', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return { rows: [{ role_id: 6 }] };
+    }
+    if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'DITBINMAS',
+            nama: 'Dit Binmas',
+            client_type: 'org',
+            regional_id: 'JATIM',
+            client_level: 'org',
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  });
+
+  await expect(absensiRegistrasiDashboardDirektorat('DITBINMAS')).rejects.toThrow(
+    'Client "DITBINMAS" bukan tipe direktorat'
+  );
 });
