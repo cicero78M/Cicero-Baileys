@@ -113,7 +113,8 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const { rows: orgClients } = await query(
     `SELECT client_id, nama, client_type
      FROM clients
-     WHERE LOWER(TRIM(COALESCE(client_type, ''))) = $1
+     WHERE client_status = true
+       AND LOWER(TRIM(client_type)) = $1
      ORDER BY nama`,
     [MENU_11_CLIENT_TYPE_ORG]
   );
@@ -130,16 +131,14 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   orgClients.forEach((client) => {
     const normalizedClientId = String(client.client_id || "").trim().toUpperCase();
     if (!normalizedClientId || seenClients.has(normalizedClientId)) return;
-
-    orgScopeClients.push({
-      client_id: normalizedClientId,
-      nama: client.nama,
-      client_type: client.client_type,
-    });
+    orgScopeClients.push(client);
     seenClients.add(normalizedClientId);
   });
 
-  const orgScopeClientIds = orgScopeClients.map((client) => client.client_id);
+  const scopeClientIds = [
+    directorateId,
+    ...orgScopeClients.map((client) => client.client_id.toUpperCase()),
+  ];
 
   const { rows: directorateDashboardRows } = await query(
     `SELECT COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
@@ -215,24 +214,24 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const noAttendance = [];
 
   orgScopeClients.forEach((client) => {
-    const id = client.client_id;
-    const dashboardCount = dashboardCountMap.get(id) || 0;
-    const attendanceCount = loginCountMap.get(id) || 0;
+      const id = client.client_id.toUpperCase();
+      const dashboardCount = dashboardCountMap.get(id) || 0;
+      const attendanceCount = loginCountMap.get(id) || 0;
 
-    if (dashboardCount > 0) {
-      hasDashboardUser.push(
-        `${client.nama.toUpperCase()} : ${dashboardCount} user dashboard (${attendanceCount} absensi web)`
-      );
-    } else {
-      noDashboardUser.push(client.nama.toUpperCase());
-    }
+      if (dashboardCount > 0) {
+        hasDashboardUser.push(
+          `${client.nama.toUpperCase()} : ${dashboardCount} user dashboard (${attendanceCount} absensi web)`
+        );
+      } else {
+        noDashboardUser.push(client.nama.toUpperCase());
+      }
 
-    if (attendanceCount > 0) {
-      hasAttendance.push(`${client.nama.toUpperCase()} : ${attendanceCount} user`);
-    } else {
-      noAttendance.push(client.nama.toUpperCase());
-    }
-  });
+      if (attendanceCount > 0) {
+        hasAttendance.push(`${client.nama.toUpperCase()} : ${attendanceCount} user`);
+      } else {
+        noAttendance.push(client.nama.toUpperCase());
+      }
+    });
 
   let msg = `${salam}\n\n`;
   msg += `Mohon Ijin Komandan,\n\n`;

@@ -28,8 +28,10 @@ test('normalizes ORG/Org/org via SQL filter and builds ORG recap', async () => {
         ],
       };
     }
-    if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user') && sql.includes('= $2')) {
-      return { rows: [{ dashboard_user: 3 }] };
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
+      return {
+        rows: [{ client_id: 'ORG_PARENT', nama: 'Org Parent', client_type: 'org' }],
+      };
     }
     if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS operator') && sql.includes('= $2')) {
       return { rows: [{ operator: 1 }] };
@@ -54,7 +56,7 @@ test('normalizes ORG/Org/org via SQL filter and builds ORG recap', async () => {
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
-    expect.stringContaining("LOWER(TRIM(COALESCE(client_type, ''))) = $1"),
+    expect.stringContaining('LOWER(TRIM(client_type)) = $1'),
     ['org']
   );
   expect(mockQuery.mock.calls[2][0]).not.toContain('client_status = true');
@@ -74,9 +76,28 @@ test('uses dedicated directorate query (no ORG fallback in directorate count)', 
     if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
       return { rows: [{ client_id: 'DITBINMAS', nama: 'Direktorat Binmas', client_type: 'direktorat' }] };
     }
-    if (sql.includes("LOWER(TRIM(COALESCE(client_type, ''))) = $1")) return { rows: [] };
-    if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user') && sql.includes('= $2')) {
-      return { rows: [{ dashboard_user: 1 }] };
+    if (sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'CUSTOM_DIT',
+            nama: 'Custom Dit',
+            client_type: 'direktorat',
+            regional_id: 'JATIM',
+            client_level: 2,
+          },
+        ],
+      };
+    }
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
+      return {
+        rows: [{ client_id: 'ORG_JATIM', nama: 'Org Jatim', client_type: 'org' }],
+      };
+    }
+    if (sql.includes('AS dashboard_user')) {
+      return {
+        rows: [{ client_id: 'CUSTOM_DIT', dashboard_user: 1 }],
+      };
     }
     if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS operator') && sql.includes('= $2')) {
       return { rows: [{ operator: 0 }] };
@@ -123,13 +144,53 @@ test('fails fast when mapped role is missing from roles table', async () => {
 
 test('fails fast when selected client_id is not found in clients table', async () => {
   mockQuery.mockImplementation((sql) => {
-    if (sql.includes('FROM roles')) return { rows: [{ role_id: 5 }] };
-    if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) return { rows: [] };
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [{ role_id: 1 }],
+      };
+    }
+    if (sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'DITBINMAS',
+            nama: 'Direktorat Binmas',
+            client_type: 'direktorat',
+            regional_id: 'JATIM',
+            client_level: 2,
+          },
+        ],
+      };
+    }
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
+      return {
+        rows: [{ client_id: 'ORG_JATIM', nama: 'Org Jatim', client_type: 'org' }],
+      };
+    }
+    if (sql.includes('AS dashboard_user')) {
+      return {
+        rows: [{ client_id: 'DITBINMAS', dashboard_user: 1 }],
+      };
+    }
+    if (sql.includes('JOIN login_log ll')) {
+      return {
+        rows: [],
+      };
+    }
     return { rows: [] };
   });
 
-  await expect(absensiRegistrasiDashboardDirektorat('DITBINMAS')).rejects.toThrow(
-    'Client Direktorat "DITBINMAS" tidak ditemukan pada tabel clients.'
+  await absensiRegistrasiDashboardDirektorat('DITBINMAS');
+
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    3,
+    expect.stringContaining('LOWER(TRIM(client_type)) = $1'),
+    ['org']
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    4,
+    expect.stringContaining('AS dashboard_user'),
+    ['ditbinmas', ['DITBINMAS', 'ORG_JATIM']]
   );
 });
 
@@ -153,9 +214,8 @@ test('keeps zero-state ORG sections with dash marker', async () => {
     if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
       return { rows: [{ client_id: 'DITLANTAS', nama: 'Direktorat Lantas', client_type: 'direktorat' }] };
     }
-    if (sql.includes("LOWER(TRIM(COALESCE(client_type, ''))) = $1")) return { rows: [] };
-    if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user') && sql.includes('= $2')) {
-      return { rows: [{ dashboard_user: 3 }] };
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
+      return { rows: [] };
     }
     if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS operator') && sql.includes('= $2')) {
       return { rows: [{ operator: 2 }] };
@@ -171,9 +231,35 @@ test('keeps zero-state ORG sections with dash marker', async () => {
 
 test('directorate metadata validation line is present', async () => {
   mockQuery.mockImplementation((sql) => {
-    if (sql.includes('FROM roles')) return { rows: [{ role_id: 2 }] };
-    if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
-      return { rows: [{ client_id: 'DITLANTAS', nama: 'Direktorat Lantas', client_type: 'direktorat' }] };
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [{ role_id: 3 }],
+      };
+    }
+    if (sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'DITSAMAPTA',
+            nama: 'Direktorat Samapta',
+            client_type: 'direktorat',
+            regional_id: 'JATIM',
+            client_level: 'direktorat',
+          },
+        ],
+      };
+    }
+    if (sql.includes('LOWER(TRIM(client_type)) = $1')) {
+      return {
+        rows: [
+          {
+            client_id: 'SATKER_SAMAPTA_1',
+            nama: 'Satker Samapta 1',
+            client_type: 'ORG',
+            client_level: 'Satker',
+          },
+        ],
+      };
     }
     if (sql.includes("LOWER(TRIM(COALESCE(client_type, ''))) = $1")) return { rows: [] };
     if (sql.includes('COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user') && sql.includes('= $2')) {
@@ -187,7 +273,62 @@ test('directorate metadata validation line is present', async () => {
 
   const msg = await absensiRegistrasiDashboardDirektorat('DITLANTAS');
 
-  expect(msg).toMatch(
-    /Validasi Direktorat: client_id=DITLANTAS, client_type=direktorat, role=DITLANTAS/
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    3,
+    expect.stringContaining('LOWER(TRIM(client_type)) = $1'),
+    ['org']
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    4,
+    expect.stringContaining('AS dashboard_user'),
+    ['ditsamapta', ['DITSAMAPTA', 'SATKER_SAMAPTA_1']]
+  );
+});
+
+test('fails fast when selected client_id is not found in clients table', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return { rows: [{ role_id: 5 }] };
+    }
+    if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
+      return { rows: [] };
+    }
+    return { rows: [] };
+  });
+
+  await expect(absensiRegistrasiDashboardDirektorat('DITBINMAS')).rejects.toThrow(
+    'Client Direktorat "DITBINMAS" tidak ditemukan pada tabel clients.'
+  );
+
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining('FROM clients'),
+    ['DITBINMAS']
+  );
+});
+
+test('fails fast when selected client is not tipe direktorat', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return { rows: [{ role_id: 6 }] };
+    }
+    if (sql.includes('FROM clients') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'DITBINMAS',
+            nama: 'Dit Binmas',
+            client_type: 'org',
+            regional_id: 'JATIM',
+            client_level: 'org',
+          },
+        ],
+      };
+    }
+    return { rows: [] };
+  });
+
+  await expect(absensiRegistrasiDashboardDirektorat('DITBINMAS')).rejects.toThrow(
+    'Client "DITBINMAS" bukan tipe direktorat'
   );
 });
