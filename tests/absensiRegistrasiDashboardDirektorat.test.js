@@ -28,7 +28,7 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
         ],
       };
     }
-    if (sql.includes('LOWER(client_type) = \'org\'')) {
+    if (sql.includes('COALESCE(NULLIF(client_level')) {
       return {
         rows: [{ client_id: 'ORG_PARENT', nama: 'Org Parent', client_type: 'org' }],
       };
@@ -61,8 +61,8 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
-    expect.stringContaining('LOWER(client_type) = \'org\''),
-    ['DITINTELKAM', 'JATIM']
+    expect.stringContaining('COALESCE(NULLIF(client_level'),
+    ['DITINTELKAM', 'JATIM', ['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
@@ -97,7 +97,7 @@ test('falls back to regional scope when no parent_client_id mapping is available
         ],
       };
     }
-    if (sql.includes('LOWER(client_type) = \'org\'')) {
+    if (sql.includes('COALESCE(NULLIF(client_level')) {
       return {
         rows: [{ client_id: 'ORG_JATIM', nama: 'Org Jatim', client_type: 'org' }],
       };
@@ -119,8 +119,8 @@ test('falls back to regional scope when no parent_client_id mapping is available
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
-    expect.stringContaining('LOWER(client_type) = \'org\''),
-    ['CUSTOM_DIT', 'JATIM']
+    expect.stringContaining('COALESCE(NULLIF(client_level'),
+    ['CUSTOM_DIT', 'JATIM', ['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
@@ -145,7 +145,7 @@ test('keeps selected directorate in scope when ORG relation is empty', async () 
         ],
       };
     }
-    if (sql.includes('LOWER(client_type) = \'org\'')) {
+    if (sql.includes('COALESCE(NULLIF(client_level')) {
       return { rows: [] };
     }
     if (sql.includes('AS dashboard_user')) {
@@ -170,4 +170,63 @@ test('keeps selected directorate in scope when ORG relation is empty', async () 
   );
   expect(msg).toMatch(/DIREKTORAT LANTAS : 3 Direktorat \(2 absensi web\)/);
   expect(msg).toMatch(/Sudah memiliki user dashboard : 0 client ORG/);
+});
+
+test('includes satker client_level in menu 11 directorate scope', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'DITSAMAPTA',
+            nama: 'Direktorat Samapta',
+            client_type: 'direktorat',
+            regional_id: 'JATIM',
+            client_level: 'direktorat',
+            parent_client_id: null,
+          },
+        ],
+      };
+    }
+    if (sql.includes('COALESCE(NULLIF(client_level')) {
+      return {
+        rows: [
+          {
+            client_id: 'SATKER_SAMAPTA_1',
+            nama: 'Satker Samapta 1',
+            client_type: 'ORG',
+            client_level: 'Satker',
+          },
+        ],
+      };
+    }
+    if (sql.includes('AS dashboard_user')) {
+      return {
+        rows: [
+          { client_id: 'DITSAMAPTA', dashboard_user: 2 },
+          { client_id: 'SATKER_SAMAPTA_1', dashboard_user: 1 },
+        ],
+      };
+    }
+    if (sql.includes('JOIN login_log ll')) {
+      return {
+        rows: [{ client_id: 'SATKER_SAMAPTA_1', operator: 1 }],
+      };
+    }
+    return { rows: [] };
+  });
+
+  const msg = await absensiRegistrasiDashboardDirektorat('DITSAMAPTA');
+
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining('COALESCE(NULLIF(client_level'),
+    ['DITSAMAPTA', 'JATIM', ['org', 'satker']]
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    3,
+    expect.stringContaining('AS dashboard_user'),
+    ['ditsamapta', ['DITSAMAPTA', 'SATKER_SAMAPTA_1']]
+  );
+  expect(msg).toMatch(/- SATKER SAMAPTA 1 : 1 user dashboard \(1 absensi web\)/);
 });

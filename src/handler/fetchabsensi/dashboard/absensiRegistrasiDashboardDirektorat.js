@@ -10,6 +10,8 @@ const ROLE_BY_DIREKTORAT_CLIENT = {
   DITINTELKAM: "ditintelkam",
 };
 
+const MENU_11_DIRECTORATE_UNIT_LEVELS = ["org", "satker"];
+
 function normalizeDirectorateId(clientId) {
   return String(clientId || "").trim().toUpperCase() || "DITBINMAS";
 }
@@ -33,7 +35,15 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
-  // Scope menu 11: selected directorate + ORG clients in the same hierarchy.
+  /**
+   * Scope menu 11 = Direktorat terpilih + unit bawahan pada hierarchy yang sama.
+   *
+   * Catatan terminologi DB:
+   * - Istilah "Client ORG" di pesan WA adalah istilah legacy menu.
+   * - Pada data terbaru, unit bawahan Direktorat bisa ditandai lewat
+   *   `client_level` (utama) dengan nilai seperti `org`/`satker`.
+   * - `client_type` tetap dipakai sebagai fallback backward-compatibility.
+   */
   const { rows: directorateRows } = await query(
     `SELECT client_id, nama, client_type, regional_id, client_level, parent_client_id
      FROM clients
@@ -48,10 +58,10 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
       : null;
 
   const { rows: orgClients } = await query(
-    `SELECT client_id, nama, client_type
+    `SELECT client_id, nama, client_type, client_level
      FROM clients
      WHERE client_status = true
-       AND LOWER(client_type) = 'org'
+       AND LOWER(TRIM(COALESCE(NULLIF(client_level, ''), NULLIF(client_type, '')))) = ANY($3)
        AND (
          UPPER(COALESCE(parent_client_id, '')) = $1
          OR (
@@ -61,13 +71,13 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
              SELECT 1
              FROM clients pc
              WHERE pc.client_status = true
-               AND LOWER(pc.client_type) = 'org'
+               AND LOWER(TRIM(COALESCE(NULLIF(pc.client_level, ''), NULLIF(pc.client_type, '')))) = ANY($3)
                AND UPPER(COALESCE(pc.parent_client_id, '')) = $1
            )
          )
        )
      ORDER BY nama`,
-    [directorateId, directorateRegionalId]
+    [directorateId, directorateRegionalId, MENU_11_DIRECTORATE_UNIT_LEVELS]
   );
 
   const clients = [];
