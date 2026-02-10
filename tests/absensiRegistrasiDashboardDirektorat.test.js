@@ -10,6 +10,15 @@ const { absensiRegistrasiDashboardDirektorat } = await import(
 
 test('generates directorate report with sequential operator counts', async () => {
   mockQuery.mockImplementation((sql) => {
+    if (sql.includes('SELECT DISTINCT UPPER(duc.client_id)')) {
+      return {
+        rows: [
+          { client_id: 'DITA' },
+          { client_id: 'POLRESA' },
+          { client_id: 'POLRESB' },
+        ],
+      };
+    }
     if (sql.includes('FROM clients')) {
       return {
         rows: [
@@ -34,13 +43,18 @@ test('generates directorate report with sequential operator counts', async () =>
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     1,
-    expect.stringContaining('client_status = true'),
-    ['DITA']
+    expect.stringContaining('SELECT DISTINCT UPPER(duc.client_id)'),
+    ['dita']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
+    expect.stringContaining('client_status = true'),
+    [['DITA', 'POLRESA', 'POLRESB']]
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    3,
     expect.stringContaining('JOIN login_log ll'),
-    ['dita', 'DITA', expect.any(Date)]
+    ['dita', ['DITA', 'POLRESA', 'POLRESB'], expect.any(Date)]
   );
   expect(msg).toMatch(/DIT A : 3 Dita/);
   expect(msg).toMatch(/Sudah : 1 Polres\n- POLRES A : 1 Dita/);
@@ -49,6 +63,16 @@ test('generates directorate report with sequential operator counts', async () =>
 
 test('generates report for DITINTELKAM with correct role label', async () => {
   mockQuery.mockImplementation((sql) => {
+    if (sql.includes('SELECT DISTINCT UPPER(duc.client_id)')) {
+      return {
+        rows: [
+          { client_id: 'DITINTELKAM' },
+          { client_id: 'POLRES_BOJONEGORO' },
+          { client_id: 'POLRES_JOMBANG' },
+          { client_id: 'POLRES_KEDIRI' },
+        ],
+      };
+    }
     if (sql.includes('FROM clients')) {
       return {
         rows: [
@@ -73,13 +97,18 @@ test('generates report for DITINTELKAM with correct role label', async () => {
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     1,
-    expect.stringContaining('client_status = true'),
-    ['DITINTELKAM']
+    expect.stringContaining('SELECT DISTINCT UPPER(duc.client_id)'),
+    ['ditintelkam']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
+    expect.stringContaining('client_status = true'),
+    [['DITINTELKAM', 'POLRES_BOJONEGORO', 'POLRES_JOMBANG', 'POLRES_KEDIRI']]
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    3,
     expect.stringContaining('JOIN login_log ll'),
-    ['ditintelkam', 'DITINTELKAM', expect.any(Date)]
+    ['ditintelkam', ['DITINTELKAM', 'POLRES_BOJONEGORO', 'POLRES_JOMBANG', 'POLRES_KEDIRI'], expect.any(Date)]
   );
   // Should show role label "Ditintelkam" instead of "Operator"
   expect(msg).toMatch(/DIREKTORAT INTELKAM : 1 Ditintelkam/);
