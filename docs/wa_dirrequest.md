@@ -1,5 +1,5 @@
 # Menu DirRequest untuk Operator WA
-*Last updated: 2026-01-22*
+*Last updated: 2026-02-10*
 
 Menu **dirrequest** digunakan tim Ditbinmas untuk memicu pengambilan data,
 rekap, dan laporan langsung dari WhatsApp. Menu utama menampilkan beberapa
@@ -129,6 +129,22 @@ dirrequest tanpa langkah tambahan.
   - Setiap personel memakai format
     `- Nama, Pelaksanaan: <commentCount>/<totalKonten>` untuk menampilkan
     jumlah konten yang dikomentari secara jelas.
+
+## Absensi User Web Dashboard Direktorat/Bidang (Menu 1️⃣1️⃣)
+- Menu **1️⃣1️⃣** sekarang memproses data sesuai *Client ID Direktorat* yang
+  dipilih di awal sesi `dirrequest`, lalu mengunci role dashboard ke role yang
+  sama (mapping: `DITBINMAS`, `DITLANTAS`, `BIDHUMAS`, `DITSAMAPTA`,
+  `DITINTELKAM`).
+- Scope client yang ditampilkan adalah:
+  1. client Direktorat terpilih, dan
+  2. seluruh client aktif dengan `client_type = ORG`.
+- Rekap menampilkan dua sisi data sekaligus berdasarkan role yang sama:
+  - status kepemilikan user dashboard (*sudah punya* vs *belum punya*), dan
+  - absensi login web hari ini (*sudah absensi* vs *belum absensi*).
+- Contoh: jika operator memilih `DITINTELKAM`, query hanya menghitung
+  `dashboard_user` dengan role `ditintelkam` untuk `DITINTELKAM` dan semua
+  client ORG, termasuk saat menyusun daftar client yang belum memiliki user
+  dashboard.
 
 ## Rekap Kelengkapan data Personil Satker (Menu 1)
 - Label menu utama diperbarui menjadi **1️⃣ Rekap Kelengkapan data Personil Satker.**
