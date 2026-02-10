@@ -9,6 +9,7 @@ function normalizeDirectorateId(clientId) {
 export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS") {
   const directorateId = normalizeDirectorateId(clientId);
   const roleName = directorateId.toLowerCase();
+  const roleLabel = directorateId.charAt(0).toUpperCase() + directorateId.slice(1).toLowerCase();
 
   const now = new Date();
   const hari = hariIndo[now.getDay()];
@@ -60,7 +61,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
       const id = client.client_id.toUpperCase();
       const count = countMap.get(id) || 0;
       if (count > 0) {
-        sudah.push(`${client.nama.toUpperCase()} : ${count} Operator`);
+        sudah.push(`${client.nama.toUpperCase()} : ${count} ${roleLabel}`);
       } else {
         belum.push(client.nama.toUpperCase());
       }
@@ -72,7 +73,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   msg += `${hari}, ${tanggal}\n`;
   msg += `Jam: ${jam}\n\n`;
   msg += `Absensi Registrasi User Direktorat dan Polres :\n\n`;
-  msg += `${directorateName.toUpperCase()} : ${directorateCount} Operator\n\n`;
+  msg += `${directorateName.toUpperCase()} : ${directorateCount} ${roleLabel}\n\n`;
   msg += `Sudah : ${sudah.length} Polres\n`;
   msg += sudah.length ? sudah.map((n) => `- ${n}`).join("\n") : "-";
   msg += `\nBelum : ${belum.length} Polres\n`;
