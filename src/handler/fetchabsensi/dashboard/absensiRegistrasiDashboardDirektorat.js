@@ -22,11 +22,27 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
+  // Get clients that have users with the matching role (defines the directorate's scope)
+  const { rows: scopeClients } = await query(
+    `SELECT DISTINCT UPPER(duc.client_id) AS client_id
+     FROM dashboard_user du
+     JOIN roles r ON du.role_id = r.role_id
+     JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
+     WHERE LOWER(r.role_name) = $1 AND du.status = true`,
+    [roleName]
+  );
+
+  const scopeClientIdsSet = new Set(scopeClients.map((c) => c.client_id));
+  if (!scopeClientIdsSet.has(directorateId)) {
+    scopeClientIdsSet.add(directorateId);
+  }
+  const scopeClientIds = Array.from(scopeClientIdsSet);
+
   const { rows: clients } = await query(
     `SELECT client_id, nama FROM clients
-     WHERE client_status = true AND (LOWER(client_type) = 'org' OR UPPER(client_id) = $1)
+     WHERE client_status = true AND UPPER(client_id) = ANY($1)
      ORDER BY nama`,
-    [directorateId]
+    [scopeClientIds]
   );
 
   const { rows: registeredRows } = await query(
@@ -37,11 +53,11 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
      JOIN clients c ON c.client_id = duc.client_id
      JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
      WHERE LOWER(r.role_name) = $1 AND du.status = true
-       AND (LOWER(c.client_type) = 'org' OR UPPER(c.client_id) = $2)
+       AND UPPER(duc.client_id) = ANY($2)
        AND ll.login_source = 'web'
        AND ll.logged_at >= $3
      GROUP BY duc.client_id`,
-    [roleName, directorateId, startOfToday]
+    [roleName, scopeClientIds, startOfToday]
   );
 
   const countMap = new Map(
