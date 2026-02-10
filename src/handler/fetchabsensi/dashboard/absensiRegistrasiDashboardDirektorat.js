@@ -32,10 +32,11 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
     [roleName]
   );
 
-  const scopeClientIds = scopeClients.map((c) => c.client_id);
-  if (!scopeClientIds.includes(directorateId)) {
-    scopeClientIds.push(directorateId);
+  const scopeClientIdsSet = new Set(scopeClients.map((c) => c.client_id));
+  if (!scopeClientIdsSet.has(directorateId)) {
+    scopeClientIdsSet.add(directorateId);
   }
+  const scopeClientIds = Array.from(scopeClientIdsSet);
 
   const { rows: clients } = await query(
     `SELECT client_id, nama FROM clients
