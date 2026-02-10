@@ -2,15 +2,25 @@ import { query } from "../../../db/index.js";
 import { hariIndo } from "../../../utils/constants.js";
 import { getGreeting } from "../../../utils/utilsHelper.js";
 
-// All directorate roles to filter by
-const DIREKTORAT_ROLES = ['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'];
+const ROLE_BY_DIREKTORAT_CLIENT = {
+  DITBINMAS: "ditbinmas",
+  DITLANTAS: "ditlantas",
+  BIDHUMAS: "bidhumas",
+  DITSAMAPTA: "ditsamapta",
+  DITINTELKAM: "ditintelkam",
+};
 
 function normalizeDirectorateId(clientId) {
   return String(clientId || "").trim().toUpperCase() || "DITBINMAS";
 }
 
+function resolveRoleByDirectorate(clientId) {
+  return ROLE_BY_DIREKTORAT_CLIENT[normalizeDirectorateId(clientId)] || "ditbinmas";
+}
+
 export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS") {
   const directorateId = normalizeDirectorateId(clientId);
+  const roleName = resolveRoleByDirectorate(directorateId);
   const roleLabel = "Direktorat";
 
   const now = new Date();
@@ -20,68 +30,91 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const salam = getGreeting();
 
   // Get start of today in local timezone (Jakarta/Asia timezone).
-  // This is consistent with how dates are displayed throughout the application.
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
-  // Get clients that have users with ANY directorate role (defines the directorate's scope)
-  const { rows: scopeClients } = await query(
-    `SELECT DISTINCT UPPER(duc.client_id) AS client_id
-     FROM dashboard_user du
-     JOIN roles r ON du.role_id = r.role_id
-     JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
-     WHERE LOWER(r.role_name) = ANY($1) AND du.status = true`,
-    [DIREKTORAT_ROLES]
-  );
-
-  const scopeClientIdsSet = new Set(scopeClients.map((c) => c.client_id));
-  if (!scopeClientIdsSet.has(directorateId)) {
-    scopeClientIdsSet.add(directorateId);
-  }
-  const scopeClientIds = Array.from(scopeClientIdsSet);
-
+  // Scope menu 11: selected directorate + all active ORG clients.
   const { rows: clients } = await query(
-    `SELECT client_id, nama FROM clients
-     WHERE client_status = true AND UPPER(client_id) = ANY($1)
+    `SELECT client_id, nama, client_type
+     FROM clients
+     WHERE client_status = true
+       AND (
+         UPPER(client_id) = $1
+         OR LOWER(client_type) = 'org'
+       )
      ORDER BY nama`,
-    [scopeClientIds]
+    [directorateId]
   );
 
-  const { rows: registeredRows } = await query(
-    `SELECT duc.client_id, COUNT(DISTINCT du.dashboard_user_id) AS operator
+  const scopeClientIds = clients.map((client) => client.client_id.toUpperCase());
+  if (!scopeClientIds.length) {
+    scopeClientIds.push(directorateId);
+  }
+
+  const { rows: dashboardUserRows } = await query(
+    `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
      FROM dashboard_user du
      JOIN roles r ON du.role_id = r.role_id
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
-     JOIN clients c ON c.client_id = duc.client_id
+     WHERE LOWER(r.role_name) = LOWER($1)
+       AND du.status = true
+       AND UPPER(duc.client_id) = ANY($2)
+     GROUP BY UPPER(duc.client_id)`,
+    [roleName, scopeClientIds]
+  );
+
+  const { rows: loginRows } = await query(
+    `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS operator
+     FROM dashboard_user du
+     JOIN roles r ON du.role_id = r.role_id
+     JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
      JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
-     WHERE LOWER(r.role_name) = ANY($1) AND du.status = true
+     WHERE LOWER(r.role_name) = LOWER($1)
+       AND du.status = true
        AND UPPER(duc.client_id) = ANY($2)
        AND ll.login_source = 'web'
        AND ll.logged_at >= $3
-     GROUP BY duc.client_id`,
-    [DIREKTORAT_ROLES, scopeClientIds, startOfToday]
+     GROUP BY UPPER(duc.client_id)`,
+    [roleName, scopeClientIds, startOfToday]
   );
 
-  const countMap = new Map(
-    registeredRows.map((r) => [r.client_id.toUpperCase(), Number(r.operator)])
+  const dashboardCountMap = new Map(
+    dashboardUserRows.map((row) => [row.client_id.toUpperCase(), Number(row.dashboard_user)])
+  );
+  const loginCountMap = new Map(
+    loginRows.map((row) => [row.client_id.toUpperCase(), Number(row.operator)])
   );
 
   const directorateName =
-    clients.find((c) => c.client_id?.toUpperCase() === directorateId)?.nama ||
+    clients.find((client) => client.client_id?.toUpperCase() === directorateId)?.nama ||
     directorateId;
-  const directorateCount = countMap.get(directorateId) || 0;
+  const directorateDashboardCount = dashboardCountMap.get(directorateId) || 0;
+  const directorateAttendanceCount = loginCountMap.get(directorateId) || 0;
 
-  const sudah = [];
-  const belum = [];
+  const hasDashboardUser = [];
+  const noDashboardUser = [];
+  const hasAttendance = [];
+  const noAttendance = [];
+
   clients
     .filter((client) => client.client_id?.toUpperCase() !== directorateId)
     .forEach((client) => {
       const id = client.client_id.toUpperCase();
-      const count = countMap.get(id) || 0;
-      if (count > 0) {
-        sudah.push(`${client.nama.toUpperCase()} : ${count} ${roleLabel}`);
+      const dashboardCount = dashboardCountMap.get(id) || 0;
+      const attendanceCount = loginCountMap.get(id) || 0;
+
+      if (dashboardCount > 0) {
+        hasDashboardUser.push(
+          `${client.nama.toUpperCase()} : ${dashboardCount} user dashboard (${attendanceCount} absensi web)`
+        );
       } else {
-        belum.push(client.nama.toUpperCase());
+        noDashboardUser.push(client.nama.toUpperCase());
+      }
+
+      if (attendanceCount > 0) {
+        hasAttendance.push(`${client.nama.toUpperCase()} : ${attendanceCount} user`);
+      } else {
+        noAttendance.push(client.nama.toUpperCase());
       }
     });
 
@@ -90,12 +123,19 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   msg += `📋 Rekap Registrasi User dashboard Cicero ${directorateName.toUpperCase()} :\n`;
   msg += `${hari}, ${tanggal}\n`;
   msg += `Jam: ${jam}\n\n`;
-  msg += `Absensi Registrasi User Direktorat dan Polres :\n\n`;
-  msg += `${directorateName.toUpperCase()} : ${directorateCount} ${roleLabel}\n\n`;
-  msg += `Sudah : ${sudah.length} Polres\n`;
-  msg += sudah.length ? sudah.map((n) => `- ${n}`).join("\n") : "-";
-  msg += `\nBelum : ${belum.length} Polres\n`;
-  msg += belum.length ? belum.map((n) => `- ${n}`).join("\n") : "-";
+  msg += `Role filter: ${roleName.toUpperCase()}\n\n`;
+  msg += `Absensi Registrasi User Direktorat dan Client ORG :\n\n`;
+  msg += `${directorateName.toUpperCase()} : ${directorateDashboardCount} ${roleLabel} (${directorateAttendanceCount} absensi web)\n\n`;
+
+  msg += `Sudah memiliki user dashboard : ${hasDashboardUser.length} client ORG\n`;
+  msg += hasDashboardUser.length ? hasDashboardUser.map((name) => `- ${name}`).join("\n") : "-";
+  msg += `\nBelum memiliki user dashboard : ${noDashboardUser.length} client ORG\n`;
+  msg += noDashboardUser.length ? noDashboardUser.map((name) => `- ${name}`).join("\n") : "-";
+
+  msg += `\n\nSudah absensi web hari ini : ${hasAttendance.length} client ORG\n`;
+  msg += hasAttendance.length ? hasAttendance.map((name) => `- ${name}`).join("\n") : "-";
+  msg += `\nBelum absensi web hari ini : ${noAttendance.length} client ORG\n`;
+  msg += noAttendance.length ? noAttendance.map((name) => `- ${name}`).join("\n") : "-";
   return msg.trim();
 }
 

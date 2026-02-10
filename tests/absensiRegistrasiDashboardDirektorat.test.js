@@ -12,85 +12,30 @@ beforeEach(() => {
   mockQuery.mockClear();
 });
 
-test('generates directorate report with sequential operator counts', async () => {
+test('generates report for selected directorate role and ORG scope', async () => {
   mockQuery.mockImplementation((sql) => {
-    if (sql.includes('SELECT DISTINCT UPPER(duc.client_id)')) {
-      return {
-        rows: [
-          { client_id: 'DITA' },
-          { client_id: 'POLRESA' },
-          { client_id: 'POLRESB' },
-        ],
-      };
-    }
     if (sql.includes('FROM clients')) {
       return {
         rows: [
-          { client_id: 'DITA', nama: 'Dit A' },
-          { client_id: 'POLRESA', nama: 'Polres A' },
-          { client_id: 'POLRESB', nama: 'Polres B' },
+          { client_id: 'DITINTELKAM', nama: 'Direktorat Intelkam', client_type: 'direktorat' },
+          { client_id: 'ORG_A', nama: 'Org A', client_type: 'org' },
+          { client_id: 'ORG_B', nama: 'Org B', client_type: 'org' },
         ],
       };
     }
-    if (sql.includes('GROUP BY duc.client_id')) {
+    if (sql.includes('AS dashboard_user')) {
       return {
         rows: [
-          { client_id: 'DITA', operator: 3 },
-          { client_id: 'POLRESA', operator: 1 },
+          { client_id: 'DITINTELKAM', dashboard_user: 2 },
+          { client_id: 'ORG_A', dashboard_user: 1 },
         ],
       };
     }
-    return { rows: [] };
-  });
-
-  const msg = await absensiRegistrasiDashboardDirektorat('dita');
-
-  expect(mockQuery).toHaveBeenNthCalledWith(
-    1,
-    expect.stringContaining('SELECT DISTINCT UPPER(duc.client_id)'),
-    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam']]
-  );
-  expect(mockQuery).toHaveBeenNthCalledWith(
-    2,
-    expect.stringContaining('client_status = true'),
-    [['DITA', 'POLRESA', 'POLRESB']]
-  );
-  expect(mockQuery).toHaveBeenNthCalledWith(
-    3,
-    expect.stringContaining('JOIN login_log ll'),
-    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'], ['DITA', 'POLRESA', 'POLRESB'], expect.any(Date)]
-  );
-  expect(msg).toMatch(/DIT A : 3 Direktorat/);
-  expect(msg).toMatch(/Sudah : 1 Polres\n- POLRES A : 1 Direktorat/);
-  expect(msg).toMatch(/Belum : 1 Polres\n- POLRES B/);
-});
-
-test('generates report for DITINTELKAM with correct role label', async () => {
-  mockQuery.mockImplementation((sql) => {
-    if (sql.includes('SELECT DISTINCT UPPER(duc.client_id)')) {
-      return {
-        rows: [
-          { client_id: 'DITINTELKAM' },
-          { client_id: 'POLRES_BOJONEGORO' },
-          { client_id: 'POLRES_JOMBANG' },
-          { client_id: 'POLRES_KEDIRI' },
-        ],
-      };
-    }
-    if (sql.includes('FROM clients')) {
-      return {
-        rows: [
-          { client_id: 'DITINTELKAM', nama: 'Direktorat Intelkam' },
-          { client_id: 'POLRES_BOJONEGORO', nama: 'Polres Bojonegoro' },
-          { client_id: 'POLRES_JOMBANG', nama: 'Polres Jombang' },
-          { client_id: 'POLRES_KEDIRI', nama: 'Polres Kediri' },
-        ],
-      };
-    }
-    if (sql.includes('GROUP BY duc.client_id')) {
+    if (sql.includes('JOIN login_log ll')) {
       return {
         rows: [
           { client_id: 'DITINTELKAM', operator: 1 },
+          { client_id: 'ORG_A', operator: 1 },
         ],
       };
     }
@@ -101,24 +46,58 @@ test('generates report for DITINTELKAM with correct role label', async () => {
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     1,
-    expect.stringContaining('SELECT DISTINCT UPPER(duc.client_id)'),
-    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam']]
+    expect.stringContaining('FROM clients'),
+    ['DITINTELKAM']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     2,
-    expect.stringContaining('client_status = true'),
-    [['DITINTELKAM', 'POLRES_BOJONEGORO', 'POLRES_JOMBANG', 'POLRES_KEDIRI']]
+    expect.stringContaining('AS dashboard_user'),
+    ['ditintelkam', ['DITINTELKAM', 'ORG_A', 'ORG_B']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
     expect.stringContaining('JOIN login_log ll'),
-    [['ditbinmas', 'ditlantas', 'bidhumas', 'ditsamapta', 'ditintelkam'], ['DITINTELKAM', 'POLRES_BOJONEGORO', 'POLRES_JOMBANG', 'POLRES_KEDIRI'], expect.any(Date)]
+    ['ditintelkam', ['DITINTELKAM', 'ORG_A', 'ORG_B'], expect.any(Date)]
   );
-  // Should show role label "Direktorat" instead of "Ditintelkam"
-  expect(msg).toMatch(/DIREKTORAT INTELKAM : 1 Direktorat/);
-  expect(msg).toMatch(/Sudah : 0 Polres/);
-  expect(msg).toMatch(/Belum : 3 Polres/);
-  expect(msg).toMatch(/POLRES BOJONEGORO/);
-  expect(msg).toMatch(/POLRES JOMBANG/);
-  expect(msg).toMatch(/POLRES KEDIRI/);
+
+  expect(msg).toMatch(/Role filter: DITINTELKAM/);
+  expect(msg).toMatch(/DIREKTORAT INTELKAM : 2 Direktorat \(1 absensi web\)/);
+  expect(msg).toMatch(/Sudah memiliki user dashboard : 1 client ORG/);
+  expect(msg).toMatch(/- ORG A : 1 user dashboard \(1 absensi web\)/);
+  expect(msg).toMatch(/Belum memiliki user dashboard : 1 client ORG/);
+  expect(msg).toMatch(/- ORG B/);
+  expect(msg).toMatch(/Sudah absensi web hari ini : 1 client ORG/);
+  expect(msg).toMatch(/Belum absensi web hari ini : 1 client ORG/);
+});
+
+test('falls back to ditbinmas role mapping for unknown directorate id', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM clients')) {
+      return {
+        rows: [
+          { client_id: 'CUSTOM_DIT', nama: 'Custom Dit', client_type: 'direktorat' },
+          { client_id: 'ORG_X', nama: 'Org X', client_type: 'org' },
+        ],
+      };
+    }
+    if (sql.includes('AS dashboard_user')) {
+      return {
+        rows: [{ client_id: 'CUSTOM_DIT', dashboard_user: 1 }],
+      };
+    }
+    if (sql.includes('JOIN login_log ll')) {
+      return {
+        rows: [],
+      };
+    }
+    return { rows: [] };
+  });
+
+  await absensiRegistrasiDashboardDirektorat('CUSTOM_DIT');
+
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining('AS dashboard_user'),
+    ['ditbinmas', ['CUSTOM_DIT', 'ORG_X']]
+  );
 });
