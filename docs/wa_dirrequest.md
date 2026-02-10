@@ -148,22 +148,26 @@ dirrequest tanpa langkah tambahan.
 - Scope client menu **1️⃣1️⃣** sekarang mengikuti alur direktorat terbaru:
   1. validasi metadata direktorat terpilih harus sinkron (`client_id` +
      `client_type=direktorat`),
-  2. daftar client bawahan diambil dari seluruh client aktif dengan
-     `client_type=org`,
+  2. daftar client bawahan diambil dari seluruh client dengan
+     `client_type=org` (aktif maupun nonaktif),
   3. query dashboard user/login memakai role direktorat terpilih pada scope
-     `Direktorat + ORG aktif` untuk membangun status absensi sudah/belum.
+     `Direktorat + seluruh ORG` untuk membangun status absensi sudah/belum.
 - Istilah **Client ORG** pada teks pesan WA tetap dipakai sebagai label output
   menu.
 - Rekap menampilkan dua sisi data sekaligus berdasarkan role yang sama:
   - status kepemilikan user dashboard (*sudah punya* vs *belum punya*), dan
   - absensi login web hari ini (*sudah absensi* vs *belum absensi*).
 - Dampak perilaku:
-  - seluruh client ORG aktif dapat muncul pada daftar rekap menu **1️⃣1️⃣**,
+  - seluruh client ORG (baik *aktif* maupun *tidak aktif*) dapat muncul pada
+    daftar rekap menu **1️⃣1️⃣**,
   - Direktorat terpilih tetap dicantumkan sebagai ringkasan utama.
+- Query daftar client ORG pada menu **1️⃣1️⃣** tidak lagi memfilter
+  `client_status=true`; sistem mengambil semua data `client_type=org` agar
+  rekap mencakup satker aktif dan nonaktif.
 - Contoh: jika operator memilih `DITINTELKAM`, query menghitung
   `dashboard_user` dengan role `ditintelkam` untuk `DITINTELKAM` dan seluruh
-  client ORG aktif, termasuk saat menyusun daftar client yang belum memiliki
-  user dashboard.
+  client ORG (aktif/nonaktif), termasuk saat menyusun daftar client yang belum
+  memiliki user dashboard.
 
 - Prosedur menambah Direktorat baru untuk menu **1️⃣1️⃣**:
   1. Tambahkan mapping `CLIENT_ID_DIREKTORAT → role_name` pada konstanta

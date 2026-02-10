@@ -113,8 +113,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const { rows: orgClients } = await query(
     `SELECT client_id, nama, client_type
      FROM clients
-     WHERE client_status = true
-       AND LOWER(TRIM(client_type)) = $1
+     WHERE LOWER(TRIM(client_type)) = $1
      ORDER BY nama`,
     [MENU_11_CLIENT_TYPE_ORG]
   );
