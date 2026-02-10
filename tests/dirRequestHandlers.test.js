@@ -20,7 +20,7 @@ const mockAbsensiKomentar = jest.fn();
 const mockAbsensiKomentarDitbinmasReport = jest.fn();
 const mockAbsensiKomentarDitbinmasSimple = jest.fn();
 const mockFindClientById = jest.fn();
-const mockFindAllActiveOrgClients = jest.fn();
+const mockFindAllClientsByType = jest.fn();
 const mockFetchTiktokSecUid = jest.fn();
 const mockFetchAndStoreInstaContent = jest.fn();
 const mockHandleFetchLikesInstagram = jest.fn();
@@ -138,7 +138,7 @@ jest.unstable_mockModule('../src/handler/fetchabsensi/tiktok/absensiKomentarTikt
 }));
 jest.unstable_mockModule('../src/service/clientService.js', () => ({
   findClientById: mockFindClientById,
-  findAllActiveOrgClients: mockFindAllActiveOrgClients,
+  findAllClientsByType: mockFindAllClientsByType,
   fetchTiktokSecUid: mockFetchTiktokSecUid,
 }));
 jest.unstable_mockModule('../src/service/satbinmasOfficialTiktokService.js', () => ({
@@ -292,7 +292,7 @@ afterAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockFindClientById.mockReset();
-  mockFindAllActiveOrgClients.mockReset();
+  mockFindAllClientsByType.mockReset();
   mockGetShortcodesTodayByClient.mockResolvedValue([]);
   mockGetInstaPostsTodayByClient.mockResolvedValue([]);
   mockGetVideoIdsTodayByClient.mockResolvedValue([]);
@@ -428,7 +428,7 @@ test('formatRekapUserData defaults to directorate role when none provided', asyn
   }));
   mockGetUsersSocialByClient.mockResolvedValue([]);
   mockGetClientsByRole.mockResolvedValue([]);
-  mockFindAllActiveOrgClients.mockResolvedValue([]);
+  mockFindAllClientsByType.mockResolvedValue([]);
 
   await formatRekapUserData('DITBINMAS');
 
@@ -445,7 +445,7 @@ test('formatRekapUserData uses selected directorate role over mismatched roleFla
   }));
   mockGetUsersSocialByClient.mockResolvedValue([]);
   mockGetClientsByRole.mockResolvedValue([]);
-  mockFindAllActiveOrgClients.mockResolvedValue([]);
+  mockFindAllClientsByType.mockResolvedValue([]);
 
   await formatRekapUserData('BIDHUMAS', 'ditbinmas');
 
@@ -474,7 +474,7 @@ test('formatRekapUserData applies roleFlag for org clients', async () => {
     },
   ]);
   mockGetClientsByRole.mockResolvedValue(['POLRES_A']);
-  mockFindAllActiveOrgClients.mockResolvedValue([]);
+  mockFindAllClientsByType.mockResolvedValue([]);
 
   await formatRekapUserData('POLRES_A', 'ditlantas');
 
@@ -501,7 +501,7 @@ test('formatRekapUserData sorts by updated then total', async () => {
     'polres_b',
     'polres_c',
   ]);
-  mockFindAllActiveOrgClients.mockResolvedValue([
+  mockFindAllClientsByType.mockResolvedValue([
     { client_id: 'POLRES_A', client_type: 'org' },
     { client_id: 'POLRES_B', client_type: 'org' },
     { client_id: 'POLRES_C', client_type: 'org' },
@@ -537,8 +537,8 @@ test('formatRekapUserData includes all ORG clients regardless of getClientsByRol
   // getClientsByRole only returns POLRES_A
   mockGetClientsByRole.mockResolvedValue(['polres_a']);
 
-  // But findAllActiveOrgClients returns all ORG clients including POLRES_D and POLRES_E
-  mockFindAllActiveOrgClients.mockResolvedValue([
+  // But findAllClientsByType("org") returns all ORG clients including POLRES_D and POLRES_E
+  mockFindAllClientsByType.mockResolvedValue([
     { client_id: 'POLRES_A', client_type: 'org' },
     { client_id: 'POLRES_B', client_type: 'org' },
     { client_id: 'POLRES_D', client_type: 'org' },
