@@ -137,10 +137,16 @@ dirrequest tanpa langkah tambahan.
   `DITINTELKAM`).
 - Scope client yang ditampilkan **tidak lagi global untuk ORG**. Urutan aturan:
   1. client Direktorat terpilih **selalu** masuk scope,
-  2. ORG aktif diprioritaskan dari relasi `parent_client_id = client_id`
-     Direktorat terpilih,
-  3. jika relasi parent belum tersedia/konsisten, fallback ke ORG aktif dengan
+  2. unit bawahan aktif diprioritaskan dari relasi
+     `parent_client_id = client_id` Direktorat terpilih,
+  3. jika relasi parent belum tersedia/konsisten, fallback ke unit aktif dengan
      `regional_id` yang sama.
+- Definisi unit bawahan untuk menu **1️⃣1️⃣** mengikuti terminologi DB terbaru:
+  - sumber utama: `client_level` (case-insensitive) untuk nilai `org` atau
+    `satker`,
+  - fallback kompatibilitas: `client_type` saat `client_level` kosong.
+- Istilah **Client ORG** pada teks pesan WA dipertahankan sebagai label legacy,
+  namun secara data kini mencakup client level `org` dan `satker`.
 - Rekap menampilkan dua sisi data sekaligus berdasarkan role yang sama:
   - status kepemilikan user dashboard (*sudah punya* vs *belum punya*), dan
   - absensi login web hari ini (*sudah absensi* vs *belum absensi*).
