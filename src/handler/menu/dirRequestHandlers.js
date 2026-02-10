@@ -24,7 +24,7 @@ import {
   absensiKomentarDitbinmasSimple as absensiKomentarDitbinmasSimpleReport,
 } from "../fetchabsensi/tiktok/absensiKomentarTiktok.js";
 import { absensiRegistrasiDashboardDirektorat } from "../fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js";
-import { findClientById, findAllActiveOrgClients } from "../../service/clientService.js";
+import { findClientById, findAllClientsByType } from "../../service/clientService.js";
 import { getGreeting, sortDivisionKeys, formatNama, filterAttendanceUsers } from "../../utils/utilsHelper.js";
 import { sendWAFile, safeSendMessage, sendWithClientFallback } from "../../utils/waHelper.js";
 import { writeFile, mkdir, readFile, unlink, stat } from "fs/promises";
@@ -400,8 +400,8 @@ async function formatRekapUserData(clientId, roleFlag = null) {
     const polresIds = (await getClientsByRole(roleName)) || [];
     const clientIdLower = clientId.toLowerCase();
 
-    // Fetch all active ORG clients
-    const allOrgClients = await findAllActiveOrgClients();
+    // Fetch all ORG clients (active + inactive)
+    const allOrgClients = (await findAllClientsByType("org")) || [];
     const allOrgClientIds = allOrgClients.map((c) => c.client_id.toLowerCase());
 
     const seen = new Set();

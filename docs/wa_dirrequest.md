@@ -189,11 +189,15 @@ dirrequest tanpa langkah tambahan.
   4️⃣ Rekap Matriks Update Satker
   ```
 - Fungsionalitas tetap sama: bot mengirim rekap personel yang belum melengkapi
-  data dan mengelompokkannya per satker sesuai *Client ID* Direktorat yang aktif.
-  Urutan daftar pada rekap kini menempatkan **hanya** client Direktorat
-  peminta yang memiliki role sama dengan permintaan di posisi pertama, lalu
-  diikuti client bertipe **ORG** yang memiliki role sama dengan *Client ID*
-  peminta (client Direktorat lain otomatis diabaikan).
+  data dan mengelompokkannya per satker sesuai *Client ID* Direktorat yang dipilih.
+  Urutan daftar pada rekap menempatkan client Direktorat peminta di posisi
+  pertama, lalu diikuti client bertipe **ORG**.
+- Daftar satker untuk menu **1️⃣** sekarang diambil dari seluruh client dengan
+  `client_type=ORG` tanpa filter `client_status`, sehingga satker aktif maupun
+  tidak aktif tetap ikut dihitung pada rekap.
+- Sumber daftar satker menu **1️⃣** tidak lagi mengandalkan data dashboard user;
+  identitas satker ditentukan langsung dari tabel `clients` berdasarkan
+  `client_type=ORG`.
 - Filter role menyesuaikan tipe client: permintaan dari client bertipe
   **Direktorat** otomatis memakai role default setara *Client ID* ketika
   operator tidak mengirim *roleFlag*, sedangkan client **ORG** tetap menghargai
