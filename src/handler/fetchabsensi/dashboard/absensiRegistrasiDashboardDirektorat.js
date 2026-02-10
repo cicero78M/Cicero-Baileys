@@ -168,7 +168,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const dashboardCountMap = new Map();
   const loginCountMap = new Map();
 
-  if (orgScopeClientIds.length) {
+  if (scopeClientIds.length) {
     const { rows: dashboardUserRows } = await query(
       `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
        FROM dashboard_user du
@@ -178,7 +178,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
          AND du.status = true
          AND UPPER(duc.client_id) = ANY($2)
        GROUP BY UPPER(duc.client_id)`,
-      [roleName, orgScopeClientIds]
+      [roleName, scopeClientIds]
     );
 
     const { rows: loginRows } = await query(
@@ -193,7 +193,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
          AND ll.login_source = 'web'
          AND ll.logged_at >= $3
        GROUP BY UPPER(duc.client_id)`,
-      [roleName, orgScopeClientIds, startOfToday]
+      [roleName, scopeClientIds, startOfToday]
     );
 
     dashboardUserRows.forEach((row) => {
