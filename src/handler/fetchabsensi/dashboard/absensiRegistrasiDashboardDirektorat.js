@@ -83,13 +83,6 @@ function ensureDirectorateMetadata(directorateMetadata, directorateId) {
  * - BIDHUMAS → bidhumas
  * - DITSAMAPTA → ditsamapta
  * - DITINTELKAM → ditintelkam
- *
- * Prosedur menambah Direktorat baru:
- * 1. Tambahkan pasangan `CLIENT_ID_DIREKTORAT: "role_name"` pada
- *    `ROLE_BY_DIREKTORAT_CLIENT`.
- * 2. Pastikan `role_name` sudah tersedia pada tabel `roles`.
- * 3. Tambahkan/update test di `tests/absensiRegistrasiDashboardDirektorat.test.js`
- *    untuk skenario sukses dan validasi error fail-fast.
  */
 export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS") {
   const directorateId = normalizeDirectorateId(clientId);
@@ -104,7 +97,6 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const jam = now.toLocaleTimeString("id-ID", { hour12: false });
   const salam = getGreeting();
 
-  // Get start of today in local timezone (Jakarta/Asia timezone).
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
@@ -137,7 +129,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   };
 
   orgClients.forEach((client) => {
-    const normalizedClientId = String(client.client_id || '').trim().toUpperCase();
+    const normalizedClientId = String(client.client_id || "").trim().toUpperCase();
     if (!normalizedClientId || seenClients.has(normalizedClientId)) return;
     orgScopeClients.push(client);
     seenClients.add(normalizedClientId);
@@ -148,43 +140,73 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
     ...orgScopeClients.map((client) => client.client_id.toUpperCase()),
   ];
 
-  const { rows: dashboardUserRows } = await query(
-    `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
+  const { rows: directorateDashboardRows } = await query(
+    `SELECT COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
      FROM dashboard_user du
      JOIN roles r ON du.role_id = r.role_id
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
      WHERE LOWER(r.role_name) = LOWER($1)
        AND du.status = true
-       AND UPPER(duc.client_id) = ANY($2)
-     GROUP BY UPPER(duc.client_id)`,
-    [roleName, scopeClientIds]
+       AND UPPER(duc.client_id) = $2`,
+    [roleName, directorateId]
   );
 
-  const { rows: loginRows } = await query(
-    `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS operator
+  const { rows: directorateLoginRows } = await query(
+    `SELECT COUNT(DISTINCT du.dashboard_user_id) AS operator
      FROM dashboard_user du
      JOIN roles r ON du.role_id = r.role_id
      JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
      JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
      WHERE LOWER(r.role_name) = LOWER($1)
        AND du.status = true
-       AND UPPER(duc.client_id) = ANY($2)
+       AND UPPER(duc.client_id) = $2
        AND ll.login_source = 'web'
-       AND ll.logged_at >= $3
-     GROUP BY UPPER(duc.client_id)`,
-    [roleName, scopeClientIds, startOfToday]
+       AND ll.logged_at >= $3`,
+    [roleName, directorateId, startOfToday]
   );
 
-  const dashboardCountMap = new Map(
-    dashboardUserRows.map((row) => [row.client_id.toUpperCase(), Number(row.dashboard_user)])
-  );
-  const loginCountMap = new Map(
-    loginRows.map((row) => [row.client_id.toUpperCase(), Number(row.operator)])
-  );
+  const dashboardCountMap = new Map();
+  const loginCountMap = new Map();
+
+  if (orgScopeClientIds.length) {
+    const { rows: dashboardUserRows } = await query(
+      `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
+       FROM dashboard_user du
+       JOIN roles r ON du.role_id = r.role_id
+       JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
+       WHERE LOWER(r.role_name) = LOWER($1)
+         AND du.status = true
+         AND UPPER(duc.client_id) = ANY($2)
+       GROUP BY UPPER(duc.client_id)`,
+      [roleName, orgScopeClientIds]
+    );
+
+    const { rows: loginRows } = await query(
+      `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS operator
+       FROM dashboard_user du
+       JOIN roles r ON du.role_id = r.role_id
+       JOIN dashboard_user_clients duc ON du.dashboard_user_id = duc.dashboard_user_id
+       JOIN login_log ll ON ll.actor_id = du.dashboard_user_id::TEXT
+       WHERE LOWER(r.role_name) = LOWER($1)
+         AND du.status = true
+         AND UPPER(duc.client_id) = ANY($2)
+         AND ll.login_source = 'web'
+         AND ll.logged_at >= $3
+       GROUP BY UPPER(duc.client_id)`,
+      [roleName, orgScopeClientIds, startOfToday]
+    );
+
+    dashboardUserRows.forEach((row) => {
+      dashboardCountMap.set(String(row.client_id || "").toUpperCase(), Number(row.dashboard_user));
+    });
+    loginRows.forEach((row) => {
+      loginCountMap.set(String(row.client_id || "").toUpperCase(), Number(row.operator));
+    });
+  }
 
   const directorateName = selectedDirektorat.nama || directorateId;
-  const directorateDashboardCount = dashboardCountMap.get(directorateId) || 0;
-  const directorateAttendanceCount = loginCountMap.get(directorateId) || 0;
+  const directorateDashboardCount = Number(directorateDashboardRows[0]?.dashboard_user || 0);
+  const directorateAttendanceCount = Number(directorateLoginRows[0]?.operator || 0);
 
   const hasDashboardUser = [];
   const noDashboardUser = [];
@@ -224,14 +246,22 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   msg += `${directorateName.toUpperCase()} : ${directorateDashboardCount} ${roleLabel} (${directorateAttendanceCount} absensi web)\n\n`;
 
   msg += `Sudah memiliki user dashboard : ${hasDashboardUser.length} client ORG\n`;
-  msg += hasDashboardUser.length ? hasDashboardUser.map((name) => `- ${name}`).join("\n") : "-";
+  msg += hasDashboardUser.length
+    ? hasDashboardUser.map((name) => `- ${name}`).join("\n")
+    : "-";
   msg += `\nBelum memiliki user dashboard : ${noDashboardUser.length} client ORG\n`;
-  msg += noDashboardUser.length ? noDashboardUser.map((name) => `- ${name}`).join("\n") : "-";
+  msg += noDashboardUser.length
+    ? noDashboardUser.map((name) => `- ${name}`).join("\n")
+    : "-";
 
   msg += `\n\nSudah absensi web hari ini : ${hasAttendance.length} client ORG\n`;
-  msg += hasAttendance.length ? hasAttendance.map((name) => `- ${name}`).join("\n") : "-";
+  msg += hasAttendance.length
+    ? hasAttendance.map((name) => `- ${name}`).join("\n")
+    : "-";
   msg += `\nBelum absensi web hari ini : ${noAttendance.length} client ORG\n`;
-  msg += noAttendance.length ? noAttendance.map((name) => `- ${name}`).join("\n") : "-";
+  msg += noAttendance.length
+    ? noAttendance.map((name) => `- ${name}`).join("\n")
+    : "-";
   return msg.trim();
 }
 
