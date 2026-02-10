@@ -33,18 +33,60 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
-  // Scope menu 11: selected directorate + all active ORG clients.
-  const { rows: clients } = await query(
+  // Scope menu 11: selected directorate + ORG clients in the same hierarchy.
+  const { rows: directorateRows } = await query(
+    `SELECT client_id, nama, client_type, regional_id, client_level, parent_client_id
+     FROM clients
+     WHERE UPPER(client_id) = $1
+     LIMIT 1`,
+    [directorateId]
+  );
+  const directorateMetadata = directorateRows[0] || null;
+  const directorateRegionalId =
+    directorateMetadata?.regional_id && String(directorateMetadata.regional_id).trim()
+      ? String(directorateMetadata.regional_id).trim().toUpperCase()
+      : null;
+
+  const { rows: orgClients } = await query(
     `SELECT client_id, nama, client_type
      FROM clients
      WHERE client_status = true
+       AND LOWER(client_type) = 'org'
        AND (
-         UPPER(client_id) = $1
-         OR LOWER(client_type) = 'org'
+         UPPER(COALESCE(parent_client_id, '')) = $1
+         OR (
+           $2::TEXT IS NOT NULL
+           AND UPPER(COALESCE(regional_id, '')) = $2
+           AND NOT EXISTS (
+             SELECT 1
+             FROM clients pc
+             WHERE pc.client_status = true
+               AND LOWER(pc.client_type) = 'org'
+               AND UPPER(COALESCE(pc.parent_client_id, '')) = $1
+           )
+         )
        )
      ORDER BY nama`,
-    [directorateId]
+    [directorateId, directorateRegionalId]
   );
+
+  const clients = [];
+  const seenClients = new Set();
+
+  const selectedDirektorat = {
+    client_id: directorateId,
+    nama: directorateMetadata?.nama || directorateId,
+    client_type: directorateMetadata?.client_type || 'direktorat',
+  };
+  clients.push(selectedDirektorat);
+  seenClients.add(directorateId);
+
+  orgClients.forEach((client) => {
+    const normalizedClientId = String(client.client_id || '').trim().toUpperCase();
+    if (!normalizedClientId || seenClients.has(normalizedClientId)) return;
+    clients.push(client);
+    seenClients.add(normalizedClientId);
+  });
 
   const scopeClientIds = clients.map((client) => client.client_id.toUpperCase());
   if (!scopeClientIds.length) {
@@ -85,9 +127,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
     loginRows.map((row) => [row.client_id.toUpperCase(), Number(row.operator)])
   );
 
-  const directorateName =
-    clients.find((client) => client.client_id?.toUpperCase() === directorateId)?.nama ||
-    directorateId;
+  const directorateName = selectedDirektorat.nama || directorateId;
   const directorateDashboardCount = dashboardCountMap.get(directorateId) || 0;
   const directorateAttendanceCount = loginCountMap.get(directorateId) || 0;
 

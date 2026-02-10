@@ -135,16 +135,22 @@ dirrequest tanpa langkah tambahan.
   dipilih di awal sesi `dirrequest`, lalu mengunci role dashboard ke role yang
   sama (mapping: `DITBINMAS`, `DITLANTAS`, `BIDHUMAS`, `DITSAMAPTA`,
   `DITINTELKAM`).
-- Scope client yang ditampilkan adalah:
-  1. client Direktorat terpilih, dan
-  2. seluruh client aktif dengan `client_type = ORG`.
+- Scope client yang ditampilkan **tidak lagi global untuk ORG**. Urutan aturan:
+  1. client Direktorat terpilih **selalu** masuk scope,
+  2. ORG aktif diprioritaskan dari relasi `parent_client_id = client_id`
+     Direktorat terpilih,
+  3. jika relasi parent belum tersedia/konsisten, fallback ke ORG aktif dengan
+     `regional_id` yang sama.
 - Rekap menampilkan dua sisi data sekaligus berdasarkan role yang sama:
   - status kepemilikan user dashboard (*sudah punya* vs *belum punya*), dan
   - absensi login web hari ini (*sudah absensi* vs *belum absensi*).
+- Dampak perilaku:
+  - ORG di luar parent/regional Direktorat terpilih tidak ikut dihitung,
+  - Direktorat tetap muncul pada hasil meski tidak ada ORG yang cocok.
 - Contoh: jika operator memilih `DITINTELKAM`, query hanya menghitung
-  `dashboard_user` dengan role `ditintelkam` untuk `DITINTELKAM` dan semua
-  client ORG, termasuk saat menyusun daftar client yang belum memiliki user
-  dashboard.
+  `dashboard_user` dengan role `ditintelkam` untuk `DITINTELKAM` dan ORG dalam
+  parent/regional yang relevan, termasuk saat menyusun daftar client yang belum
+  memiliki user dashboard.
 
 ## Rekap Kelengkapan data Personil Satker (Menu 1)
 - Label menu utama diperbarui menjadi **1️⃣ Rekap Kelengkapan data Personil Satker.**
