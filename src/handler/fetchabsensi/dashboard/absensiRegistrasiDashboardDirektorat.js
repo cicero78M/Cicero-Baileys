@@ -10,7 +10,7 @@ const ROLE_BY_DIREKTORAT_CLIENT = {
   DITINTELKAM: "ditintelkam",
 };
 
-const MENU_11_DIRECTORATE_UNIT_LEVELS = ["org", "satker"];
+const MENU_11_CLIENT_TYPE_ORG = "org";
 
 function normalizeDirectorateId(clientId) {
   return String(clientId || "").trim().toUpperCase() || "DITBINMAS";
@@ -43,6 +43,33 @@ async function ensureRoleExists(roleName, directorateId) {
     throw new Error(
       `Role "${roleName}" untuk client Direktorat "${directorateId}" tidak ditemukan pada tabel roles. ` +
         "Konfigurasi role belum sinkron antara mapping aplikasi dan database."
+    );
+  }
+}
+
+function ensureDirectorateMetadata(directorateMetadata, directorateId) {
+  if (!directorateMetadata) {
+    throw new Error(
+      `Client Direktorat "${directorateId}" tidak ditemukan pada tabel clients.`
+    );
+  }
+
+  const resolvedClientId = String(directorateMetadata.client_id || "")
+    .trim()
+    .toUpperCase();
+  const resolvedClientType = String(directorateMetadata.client_type || "")
+    .trim()
+    .toLowerCase();
+
+  if (resolvedClientId !== directorateId) {
+    throw new Error(
+      `Data client_id tidak sinkron. Direktorat terpilih "${directorateId}" tetapi metadata mengarah ke "${resolvedClientId || '-'}".`
+    );
+  }
+
+  if (resolvedClientType !== "direktorat") {
+    throw new Error(
+      `Client "${directorateId}" bukan tipe direktorat (client_type saat ini: "${resolvedClientType || '-'}").`
     );
   }
 }
@@ -81,16 +108,6 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
 
-  /**
-   * Scope menu 11 = Direktorat terpilih + seluruh unit ORG/SATKER aktif lintas hierarchy parent.
-   *
-   * Catatan terminologi DB:
-   * - Istilah "Client ORG" di pesan WA adalah istilah legacy menu.
-   * - Menu ini tidak lagi memakai kolom `parent_client_id` agar kompatibel
-   *   dengan deployment yang belum memiliki kolom tersebut.
-   * - Unit bawahan ditentukan dari `client_level` (utama) bernilai `org`/`satker`,
-   *   dengan fallback `client_type` saat `client_level` kosong.
-   */
   const { rows: directorateRows } = await query(
     `SELECT client_id, nama, client_type, regional_id, client_level
      FROM clients
@@ -99,37 +116,37 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
     [directorateId]
   );
   const directorateMetadata = directorateRows[0] || null;
+  ensureDirectorateMetadata(directorateMetadata, directorateId);
+
   const { rows: orgClients } = await query(
-    `SELECT client_id, nama, client_type, client_level
+    `SELECT client_id, nama, client_type
      FROM clients
      WHERE client_status = true
-       AND LOWER(TRIM(COALESCE(NULLIF(client_level, ''), NULLIF(client_type, '')))) = ANY($1)
+       AND LOWER(TRIM(client_type)) = $1
      ORDER BY nama`,
-    [MENU_11_DIRECTORATE_UNIT_LEVELS]
+    [MENU_11_CLIENT_TYPE_ORG]
   );
 
-  const clients = [];
+  const orgScopeClients = [];
   const seenClients = new Set();
 
   const selectedDirektorat = {
     client_id: directorateId,
-    nama: directorateMetadata?.nama || directorateId,
-    client_type: directorateMetadata?.client_type || 'direktorat',
+    nama: directorateMetadata.nama || directorateId,
+    client_type: directorateMetadata.client_type,
   };
-  clients.push(selectedDirektorat);
-  seenClients.add(directorateId);
 
   orgClients.forEach((client) => {
     const normalizedClientId = String(client.client_id || '').trim().toUpperCase();
     if (!normalizedClientId || seenClients.has(normalizedClientId)) return;
-    clients.push(client);
+    orgScopeClients.push(client);
     seenClients.add(normalizedClientId);
   });
 
-  const scopeClientIds = clients.map((client) => client.client_id.toUpperCase());
-  if (!scopeClientIds.length) {
-    scopeClientIds.push(directorateId);
-  }
+  const scopeClientIds = [
+    directorateId,
+    ...orgScopeClients.map((client) => client.client_id.toUpperCase()),
+  ];
 
   const { rows: dashboardUserRows } = await query(
     `SELECT UPPER(duc.client_id) AS client_id, COUNT(DISTINCT du.dashboard_user_id) AS dashboard_user
@@ -174,9 +191,7 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   const hasAttendance = [];
   const noAttendance = [];
 
-  clients
-    .filter((client) => client.client_id?.toUpperCase() !== directorateId)
-    .forEach((client) => {
+  orgScopeClients.forEach((client) => {
       const id = client.client_id.toUpperCase();
       const dashboardCount = dashboardCountMap.get(id) || 0;
       const attendanceCount = loginCountMap.get(id) || 0;
@@ -202,6 +217,9 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
   msg += `${hari}, ${tanggal}\n`;
   msg += `Jam: ${jam}\n\n`;
   msg += `Role filter: ${roleName.toUpperCase()}\n\n`;
+  msg += `Validasi Direktorat: client_id=${directorateId}, client_type=${String(
+    selectedDirektorat.client_type || ""
+  ).toLowerCase()}, role=${roleName.toUpperCase()}\n\n`;
   msg += `Absensi Registrasi User Direktorat dan Client ORG :\n\n`;
   msg += `${directorateName.toUpperCase()} : ${directorateDashboardCount} ${roleLabel} (${directorateAttendanceCount} absensi web)\n\n`;
 
