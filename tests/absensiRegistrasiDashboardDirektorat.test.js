@@ -12,7 +12,7 @@ beforeEach(() => {
   mockQuery.mockClear();
 });
 
-test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () => {
+test('uses global active ORG/SATKER scope without parent_client_id dependency', async () => {
   mockQuery.mockImplementation((sql) => {
     if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
       return { rows: [{ role_id: 10 }] };
@@ -26,7 +26,6 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
             client_type: 'direktorat',
             regional_id: 'JATIM',
             client_level: 2,
-            parent_client_id: null,
           },
         ],
       };
@@ -70,7 +69,7 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
     expect.stringContaining('COALESCE(NULLIF(client_level'),
-    ['DITINTELKAM', 'JATIM', ['org', 'satker']]
+    [['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     4,
@@ -86,10 +85,9 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
   expect(msg).toMatch(/Role filter: DITINTELKAM/);
   expect(msg).toMatch(/DIREKTORAT INTELKAM : 2 Direktorat \(1 absensi web\)/);
   expect(msg).toMatch(/- ORG PARENT : 1 user dashboard \(1 absensi web\)/);
-  expect(msg).not.toMatch(/ORG GLOBAL/i);
 });
 
-test('falls back to regional scope when no parent_client_id mapping is available', async () => {
+test('fails fast when directorate role mapping is missing', async () => {
   mockQuery.mockImplementation((sql) => {
     if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
       return {
@@ -105,7 +103,6 @@ test('falls back to regional scope when no parent_client_id mapping is available
             client_type: 'direktorat',
             regional_id: 'JATIM',
             client_level: 2,
-            parent_client_id: null,
           },
         ],
       };
@@ -157,7 +154,7 @@ test('fails fast when mapped role is missing from roles table', async () => {
   expect(mockQuery).toHaveBeenCalledTimes(1);
 });
 
-test('uses regional scope when no parent_client_id mapping is available for registered directorate', async () => {
+test('uses global ORG/SATKER scope for registered directorate', async () => {
   mockQuery.mockImplementation((sql) => {
     if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
       return {
@@ -173,7 +170,6 @@ test('uses regional scope when no parent_client_id mapping is available for regi
             client_type: 'direktorat',
             regional_id: 'JATIM',
             client_level: 2,
-            parent_client_id: null,
           },
         ],
       };
@@ -201,7 +197,7 @@ test('uses regional scope when no parent_client_id mapping is available for regi
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
     expect.stringContaining('COALESCE(NULLIF(client_level'),
-    ['DITBINMAS', 'JATIM', ['org', 'satker']]
+    [['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     4,
@@ -226,7 +222,6 @@ test('keeps selected directorate in scope when ORG relation is empty', async () 
             client_type: 'direktorat',
             regional_id: 'JABAR',
             client_level: 2,
-            parent_client_id: null,
           },
         ],
       };
@@ -274,7 +269,6 @@ test('includes satker client_level in menu 11 directorate scope', async () => {
             client_type: 'direktorat',
             regional_id: 'JATIM',
             client_level: 'direktorat',
-            parent_client_id: null,
           },
         ],
       };
@@ -312,7 +306,7 @@ test('includes satker client_level in menu 11 directorate scope', async () => {
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
     expect.stringContaining('COALESCE(NULLIF(client_level'),
-    ['DITSAMAPTA', 'JATIM', ['org', 'satker']]
+    [['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
     4,
