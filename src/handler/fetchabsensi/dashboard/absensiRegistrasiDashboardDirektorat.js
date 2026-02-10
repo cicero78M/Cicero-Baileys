@@ -209,9 +209,6 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
 
   const hasDashboardUser = [];
   const noDashboardUser = [];
-  const hasAttendance = [];
-  const noAttendance = [];
-
   orgScopeClients.forEach((client) => {
       const id = client.client_id.toUpperCase();
       const dashboardCount = dashboardCountMap.get(id) || 0;
@@ -223,12 +220,6 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
         );
       } else {
         noDashboardUser.push(client.nama.toUpperCase());
-      }
-
-      if (attendanceCount > 0) {
-        hasAttendance.push(`${client.nama.toUpperCase()} : ${attendanceCount} user`);
-      } else {
-        noAttendance.push(client.nama.toUpperCase());
       }
     });
 
@@ -253,14 +244,6 @@ export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS
     ? noDashboardUser.map((name) => `- ${name}`).join("\n")
     : "-";
 
-  msg += `\n\nSudah absensi web hari ini : ${hasAttendance.length} client ORG\n`;
-  msg += hasAttendance.length
-    ? hasAttendance.map((name) => `- ${name}`).join("\n")
-    : "-";
-  msg += `\nBelum absensi web hari ini : ${noAttendance.length} client ORG\n`;
-  msg += noAttendance.length
-    ? noAttendance.map((name) => `- ${name}`).join("\n")
-    : "-";
   return msg.trim();
 }
 

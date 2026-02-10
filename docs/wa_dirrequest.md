@@ -154,9 +154,8 @@ dirrequest tanpa langkah tambahan.
      `Direktorat + seluruh ORG` untuk membangun status absensi sudah/belum.
 - Istilah **Client ORG** pada teks pesan WA tetap dipakai sebagai label output
   menu.
-- Rekap menampilkan dua sisi data sekaligus berdasarkan role yang sama:
-  - status kepemilikan user dashboard (*sudah punya* vs *belum punya*), dan
-  - absensi login web hari ini (*sudah absensi* vs *belum absensi*).
+- Rekap menu **1️⃣1️⃣** kini fokus pada status kepemilikan user dashboard
+  berdasarkan role direktorat terpilih (*sudah punya* vs *belum punya*).
 - Dampak perilaku:
   - seluruh client ORG (baik *aktif* maupun *tidak aktif*) dapat muncul pada
     daftar rekap menu **1️⃣1️⃣**,
