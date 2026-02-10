@@ -14,6 +14,9 @@ beforeEach(() => {
 
 test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () => {
   mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return { rows: [{ role_id: 10 }] };
+    }
     if (sql.includes('LIMIT 1')) {
       return {
         rows: [
@@ -56,21 +59,26 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
 
   expect(mockQuery).toHaveBeenNthCalledWith(
     1,
+    expect.stringContaining('FROM roles'),
+    ['ditintelkam']
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    2,
     expect.stringContaining('LIMIT 1'),
     ['DITINTELKAM']
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
-    2,
+    3,
     expect.stringContaining('COALESCE(NULLIF(client_level'),
     ['DITINTELKAM', 'JATIM', ['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
-    3,
+    4,
     expect.stringContaining('AS dashboard_user'),
     ['ditintelkam', ['DITINTELKAM', 'ORG_PARENT']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
-    4,
+    5,
     expect.stringContaining('JOIN login_log ll'),
     ['ditintelkam', ['DITINTELKAM', 'ORG_PARENT'], expect.any(Date)]
   );
@@ -83,6 +91,11 @@ test('uses ORG scope by parent_client_id and excludes unrelated ORG', async () =
 
 test('falls back to regional scope when no parent_client_id mapping is available', async () => {
   mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [{ role_id: 1 }],
+      };
+    }
     if (sql.includes('LIMIT 1')) {
       return {
         rows: [
@@ -115,22 +128,95 @@ test('falls back to regional scope when no parent_client_id mapping is available
     return { rows: [] };
   });
 
-  await absensiRegistrasiDashboardDirektorat('CUSTOM_DIT');
+  await expect(absensiRegistrasiDashboardDirektorat('CUSTOM_DIT')).rejects.toThrow(
+    'Role mapping untuk client Direktorat "CUSTOM_DIT" belum terdaftar.'
+  );
+
+  expect(mockQuery).toHaveBeenCalledTimes(0);
+});
+
+test('fails fast when mapped role is missing from roles table', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [],
+      };
+    }
+    return { rows: [] };
+  });
+
+  await expect(absensiRegistrasiDashboardDirektorat('DITLANTAS')).rejects.toThrow(
+    'Konfigurasi role belum sinkron antara mapping aplikasi dan database.'
+  );
 
   expect(mockQuery).toHaveBeenNthCalledWith(
-    2,
-    expect.stringContaining('COALESCE(NULLIF(client_level'),
-    ['CUSTOM_DIT', 'JATIM', ['org', 'satker']]
+    1,
+    expect.stringContaining('FROM roles'),
+    ['ditlantas']
   );
+  expect(mockQuery).toHaveBeenCalledTimes(1);
+});
+
+test('uses regional scope when no parent_client_id mapping is available for registered directorate', async () => {
+  mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [{ role_id: 1 }],
+      };
+    }
+    if (sql.includes('LIMIT 1')) {
+      return {
+        rows: [
+          {
+            client_id: 'DITBINMAS',
+            nama: 'Direktorat Binmas',
+            client_type: 'direktorat',
+            regional_id: 'JATIM',
+            client_level: 2,
+            parent_client_id: null,
+          },
+        ],
+      };
+    }
+    if (sql.includes('COALESCE(NULLIF(client_level')) {
+      return {
+        rows: [{ client_id: 'ORG_JATIM', nama: 'Org Jatim', client_type: 'org' }],
+      };
+    }
+    if (sql.includes('AS dashboard_user')) {
+      return {
+        rows: [{ client_id: 'DITBINMAS', dashboard_user: 1 }],
+      };
+    }
+    if (sql.includes('JOIN login_log ll')) {
+      return {
+        rows: [],
+      };
+    }
+    return { rows: [] };
+  });
+
+  await absensiRegistrasiDashboardDirektorat('DITBINMAS');
+
   expect(mockQuery).toHaveBeenNthCalledWith(
     3,
+    expect.stringContaining('COALESCE(NULLIF(client_level'),
+    ['DITBINMAS', 'JATIM', ['org', 'satker']]
+  );
+  expect(mockQuery).toHaveBeenNthCalledWith(
+    4,
     expect.stringContaining('AS dashboard_user'),
-    ['ditbinmas', ['CUSTOM_DIT', 'ORG_JATIM']]
+    ['ditbinmas', ['DITBINMAS', 'ORG_JATIM']]
   );
 });
 
 test('keeps selected directorate in scope when ORG relation is empty', async () => {
   mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [{ role_id: 2 }],
+      };
+    }
     if (sql.includes('LIMIT 1')) {
       return {
         rows: [
@@ -164,7 +250,7 @@ test('keeps selected directorate in scope when ORG relation is empty', async () 
   const msg = await absensiRegistrasiDashboardDirektorat('DITLANTAS');
 
   expect(mockQuery).toHaveBeenNthCalledWith(
-    3,
+    4,
     expect.stringContaining('AS dashboard_user'),
     ['ditlantas', ['DITLANTAS']]
   );
@@ -174,6 +260,11 @@ test('keeps selected directorate in scope when ORG relation is empty', async () 
 
 test('includes satker client_level in menu 11 directorate scope', async () => {
   mockQuery.mockImplementation((sql) => {
+    if (sql.includes('FROM roles') && sql.includes('LIMIT 1')) {
+      return {
+        rows: [{ role_id: 3 }],
+      };
+    }
     if (sql.includes('LIMIT 1')) {
       return {
         rows: [
@@ -219,12 +310,12 @@ test('includes satker client_level in menu 11 directorate scope', async () => {
   const msg = await absensiRegistrasiDashboardDirektorat('DITSAMAPTA');
 
   expect(mockQuery).toHaveBeenNthCalledWith(
-    2,
+    3,
     expect.stringContaining('COALESCE(NULLIF(client_level'),
     ['DITSAMAPTA', 'JATIM', ['org', 'satker']]
   );
   expect(mockQuery).toHaveBeenNthCalledWith(
-    3,
+    4,
     expect.stringContaining('AS dashboard_user'),
     ['ditsamapta', ['DITSAMAPTA', 'SATKER_SAMAPTA_1']]
   );

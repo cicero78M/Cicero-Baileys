@@ -17,13 +17,59 @@ function normalizeDirectorateId(clientId) {
 }
 
 function resolveRoleByDirectorate(clientId) {
-  return ROLE_BY_DIREKTORAT_CLIENT[normalizeDirectorateId(clientId)] || "ditbinmas";
+  const normalizedDirectorateId = normalizeDirectorateId(clientId);
+  const mappedRole = ROLE_BY_DIREKTORAT_CLIENT[normalizedDirectorateId];
+
+  if (!mappedRole) {
+    throw new Error(
+      `Role mapping untuk client Direktorat "${normalizedDirectorateId}" belum terdaftar. ` +
+        "Silakan tambahkan mapping Direktorat→role pada ROLE_BY_DIREKTORAT_CLIENT."
+    );
+  }
+
+  return mappedRole;
 }
 
+async function ensureRoleExists(roleName, directorateId) {
+  const { rows } = await query(
+    `SELECT role_id
+     FROM roles
+     WHERE LOWER(role_name) = LOWER($1)
+     LIMIT 1`,
+    [roleName]
+  );
+
+  if (!rows.length) {
+    throw new Error(
+      `Role "${roleName}" untuk client Direktorat "${directorateId}" tidak ditemukan pada tabel roles. ` +
+        "Konfigurasi role belum sinkron antara mapping aplikasi dan database."
+    );
+  }
+}
+
+/**
+ * Rekap registrasi user dashboard + absensi web untuk menu 1️⃣1️⃣ (dirrequest).
+ *
+ * Mapping resmi Direktorat→role:
+ * - DITBINMAS → ditbinmas
+ * - DITLANTAS → ditlantas
+ * - BIDHUMAS → bidhumas
+ * - DITSAMAPTA → ditsamapta
+ * - DITINTELKAM → ditintelkam
+ *
+ * Prosedur menambah Direktorat baru:
+ * 1. Tambahkan pasangan `CLIENT_ID_DIREKTORAT: "role_name"` pada
+ *    `ROLE_BY_DIREKTORAT_CLIENT`.
+ * 2. Pastikan `role_name` sudah tersedia pada tabel `roles`.
+ * 3. Tambahkan/update test di `tests/absensiRegistrasiDashboardDirektorat.test.js`
+ *    untuk skenario sukses dan validasi error fail-fast.
+ */
 export async function absensiRegistrasiDashboardDirektorat(clientId = "DITBINMAS") {
   const directorateId = normalizeDirectorateId(clientId);
   const roleName = resolveRoleByDirectorate(directorateId);
   const roleLabel = "Direktorat";
+
+  await ensureRoleExists(roleName, directorateId);
 
   const now = new Date();
   const hari = hariIndo[now.getDay()];

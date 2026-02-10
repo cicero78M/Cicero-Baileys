@@ -133,8 +133,18 @@ dirrequest tanpa langkah tambahan.
 ## Absensi User Web Dashboard Direktorat/Bidang (Menu 1️⃣1️⃣)
 - Menu **1️⃣1️⃣** sekarang memproses data sesuai *Client ID Direktorat* yang
   dipilih di awal sesi `dirrequest`, lalu mengunci role dashboard ke role yang
-  sama (mapping: `DITBINMAS`, `DITLANTAS`, `BIDHUMAS`, `DITSAMAPTA`,
-  `DITINTELKAM`).
+  sama dengan mapping resmi:
+  - `DITBINMAS` → `ditbinmas`
+  - `DITLANTAS` → `ditlantas`
+  - `BIDHUMAS` → `bidhumas`
+  - `DITSAMAPTA` → `ditsamapta`
+  - `DITINTELKAM` → `ditintelkam`
+- Resolusi role bersifat **fail-fast**:
+  - jika *Client ID* Direktorat belum ada di mapping resmi, proses dihentikan
+    dengan error eksplisit bahwa mapping role belum terdaftar,
+  - jika role hasil mapping belum ada di tabel `roles`, proses dihentikan
+    dengan error eksplisit bahwa konfigurasi role belum sinkron.
+- Sistem tidak lagi melakukan fallback diam-diam ke role `ditbinmas`.
 - Scope client yang ditampilkan **tidak lagi global untuk ORG**. Urutan aturan:
   1. client Direktorat terpilih **selalu** masuk scope,
   2. unit bawahan aktif diprioritaskan dari relasi
@@ -157,6 +167,15 @@ dirrequest tanpa langkah tambahan.
   `dashboard_user` dengan role `ditintelkam` untuk `DITINTELKAM` dan ORG dalam
   parent/regional yang relevan, termasuk saat menyusun daftar client yang belum
   memiliki user dashboard.
+
+- Prosedur menambah Direktorat baru untuk menu **1️⃣1️⃣**:
+  1. Tambahkan mapping `CLIENT_ID_DIREKTORAT → role_name` pada konstanta
+     `ROLE_BY_DIREKTORAT_CLIENT` di
+     `src/handler/fetchabsensi/dashboard/absensiRegistrasiDashboardDirektorat.js`.
+  2. Sinkronkan data `role_name` pada tabel `roles` (migration/seed sesuai alur
+     deployment).
+  3. Perbarui `tests/absensiRegistrasiDashboardDirektorat.test.js` untuk
+     skenario sukses dan validasi error fail-fast.
 
 ## Rekap Kelengkapan data Personil Satker (Menu 1)
 - Label menu utama diperbarui menjadi **1️⃣ Rekap Kelengkapan data Personil Satker.**
